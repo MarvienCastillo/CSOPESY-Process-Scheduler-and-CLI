@@ -6,6 +6,7 @@
 #include <atomic>
 #include <queue>
 #include <mutex>
+#include <cstdlib>
 
 std::atomic<bool> is_running{true};
 std::atomic<bool> marquee_running{false};
@@ -54,8 +55,6 @@ void display_thread_func(std::string text) {
     int i = 0;
     while (is_running) {
         if (marquee_running) {
-        
-
             clearLine(MARQUEE_LINE, consoleWidth);
 
             int start = i - consoleWidth + 1;
@@ -70,7 +69,9 @@ void display_thread_func(std::string text) {
                 }
             }
             std::cout.flush();
-        
+            setCursorPosition(0, INPUT_LINE);
+            std::cout << "> ";
+            std::cout.flush();
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             i++;
             if (i > text.length() + consoleWidth) {
@@ -90,6 +91,7 @@ int main() {
     std::thread display_thread(display_thread_func, text);
 
     while (is_running) {
+    
         std::string command_line;
         {
             std::unique_lock<std::mutex> lock(command_queue_mutex);
@@ -97,6 +99,7 @@ int main() {
                 command_line = command_queue.front();
                 command_queue.pop();
             }
+        
         }
 
         if (!command_line.empty()) {
@@ -106,7 +109,7 @@ int main() {
                 marquee_running = true;
             } else if (command_line == "stop_marquee") {
                 marquee_running = false;
-                clearLine(MARQUEE_LINE, consoleWidth);
+        
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
