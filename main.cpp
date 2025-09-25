@@ -12,8 +12,12 @@ int main(){
 )" << std::endl;
     std::string command;
     int speed;
-    std::string text;
+    std::string text = "This is a scrolling marquee text";
     do{
+        std:: cout << text;
+        std:: cout << " " << (40-text.size());
+        text += std::string(40-text.size(),' ');
+        std:: cout << "\nNew Text: " << text;
         std:: cin >> command;
         if (command == "help"){
             std:: cout << "Available Commands:\nstart_marquee - starts the marquee \"animation\"\nstop_marquee - stops the marquee \"animation\"\nset_text - accepts a text input and displays it as a marquee\nset_speed - sets the marquee animation refresh in milliseconds\nexit - terminates the console\n";

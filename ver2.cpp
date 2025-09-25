@@ -49,6 +49,8 @@ void keyboard_handler_thread_func() {
     while (is_running) {
         std::getline(std::cin, command_line);
         if (!command_line.empty()) {
+            gotoxy(5,5);
+            std::cout << std::string(command_line.size(),' '); // clear input in the command line
             std::unique_lock<std::mutex> lock(command_queue_mutex);
             command_queue.push(command_line);
         }
@@ -56,6 +58,7 @@ void keyboard_handler_thread_func() {
 }
 
 void marquee_logic_thread_func() {
+    int i = 0;
     while (is_running) {
         if (marquee_running) {
             std::string text;
@@ -65,24 +68,18 @@ void marquee_logic_thread_func() {
             }
 
             if (!text.empty()) {
-                // String from right to left
-                char first = text[0];
-                text.erase(0, 1);
-                text.push_back(first);
+                std::string padded = std::string(display_width, ' ') + text + std::string(display_width, ' ');
 
-                {
-                    std::unique_lock<std::mutex> lock(marquee_to_display_mutex);
-                    marquee_display_buffer = text; // update stored text
+                // Step 2: extract sliding window
+                std::string window = padded.substr(i, display_width);
+
+                // Step 3: advance index
+                i++;
+                if (i > (int)padded.size() - display_width) {
+                    i = 0; // restart scroll
                 }
 
-                // Truncates or pad
-                std::string window = text;
-                if ((int)window.size() < display_width) {
-                    window += std::string(display_width - window.size(), ' ');
-                } else if ((int)window.size() > display_width) {
-                    window = window.substr(0, display_width);
-                }
-
+                // Step 4: update display buffer
                 {
                     std::unique_lock<std::mutex> lock(prompt_mutex);
                     prompt_display_buffer = window;
@@ -94,6 +91,9 @@ void marquee_logic_thread_func() {
 }
 
 
+
+
+
 void display_thread_func() {
     const int refresh_rate_ms = 50;
     while (is_running) {
@@ -101,6 +101,7 @@ void display_thread_func() {
             std::unique_lock<std::mutex> lock(prompt_mutex);
             gotoxy(0, 0);
             std::cout << std::setw(display_width) << std::left << prompt_display_buffer << std::flush;
+            gotoxy(5,5); // for the input line
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(refresh_rate_ms));
     }
@@ -130,10 +131,8 @@ void command_process(const std::string& command_line) {
         if (!new_text.empty()) {
             std::unique_lock<std::mutex> lock(marquee_to_display_mutex);
             marquee_display_buffer = new_text;
-            display_width = static_cast<int>(new_text.size() + 5);
-            gotoxy(1, 5);
-            // marquee_pos = 0;
         }
+
     } else if (cmd == "set_speed") {
         int speed;
         if (iss >> speed && speed > 0) {
