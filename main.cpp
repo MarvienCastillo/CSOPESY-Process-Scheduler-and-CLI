@@ -1,15 +1,16 @@
 #include <iostream>
 
 int main(){
-    std:: cout << "Welcome to CSOPESY!\n";
-    std:: cout << "\nGroup Developer: \nCastillo,Marvien Angel \nHerrera,Mikaela Gabrielle \nJimenez, Jaztin Jacob \nRegindin, Sean Adrien \n\nVersion Date:\n\nCommand>";
-    std:: cout << R"(
+    std:: string header= "Welcome to CSOPESY!\n\nGroup Developer: \nCastillo,Marvien Angel \nHerrera,Mikaela Gabrielle \nJimenez, Jaztin Jacob \nRegindin, Sean Adrien \n\nVersion Date:\n";
+    std:: string ascii_art = R"( 
   ___ ___   ___  ____  ____  _____  __
  / __/ __| / _ \|  _ \|  __|/ __\ \/ /
 | |  \__ \| | | | |_| |  _| \__ \\  /
 | |__ __| | |_| |  __/| |___ __| | |
  \___|___/ \___/|_|   |_____|___/|_|
-)" << std::endl;
+)";
+    std:: string main_header = header + ascii_art;
+    std:: cout << main_header; 
     std::string command;
     int speed;
     std::string text = "This is a scrolling marquee text";

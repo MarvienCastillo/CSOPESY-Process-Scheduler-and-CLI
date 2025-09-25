@@ -14,6 +14,14 @@ std::atomic<bool> is_running{true};
 std::atomic<bool> marquee_running{false};
 std::string marquee_window = "";
 std::atomic<int> marquee_speed{200}; // default 200 ms
+std:: string header= "Welcome to CSOPESY!\n\nGroup Developer: \nCastillo,Marvien Angel \nHerrera,Mikaela Gabrielle \nJimenez, Jaztin Jacob \nRegindin, Sean Adrien \n\nVersion Date:\n";
+    std:: string ascii_art = R"( 
+  ___ ___   ___  ____  ____  _____  __
+ / __/ __| / _ \|  _ \|  __|/ __\ \/ /
+| |  \__ \| | | | |_| |  _| \__ \\  /
+| |__ __| | |_| |  __/| |___ __| | |
+ \___|___/ \___/|_|   |_____|___/|_|
+)";
 
 /**
  * We will use three threads:
@@ -49,8 +57,8 @@ void keyboard_handler_thread_func() {
     while (is_running) {
         std::getline(std::cin, command_line);
         if (!command_line.empty()) {
-            gotoxy(5,5);
-            std::cout << std::string(command_line.size(),' '); // clear input in the command line
+            gotoxy(0,35);
+            std::cout << std::string(command_line.size(),' ') << std::flush; // clear input in the command line
             std::unique_lock<std::mutex> lock(command_queue_mutex);
             command_queue.push(command_line);
         }
@@ -59,6 +67,7 @@ void keyboard_handler_thread_func() {
 
 void marquee_logic_thread_func() {
     int i = 0;
+    std::cout << header+ascii_art << std::flush; 
     while (is_running) {
         if (marquee_running) {
             std::string text;
@@ -99,9 +108,9 @@ void display_thread_func() {
     while (is_running) {
         {
             std::unique_lock<std::mutex> lock(prompt_mutex);
-            gotoxy(0, 0);
+            gotoxy(0, 25);
             std::cout << std::setw(display_width) << std::left << prompt_display_buffer << std::flush;
-            gotoxy(5,5); // for the input line
+            gotoxy(0,35); // for the input line
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(refresh_rate_ms));
     }
