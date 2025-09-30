@@ -1,19 +1,24 @@
 #include <iostream>
 
 int main(){
-    std:: cout << "Welcome to CSOPESY!\n";
-    std:: cout << "\nGroup Developer: \nCastillo,Marvien Angel \nHerrera,Mikaela Gabrielle \nJimenez, Jaztin Jacob \nRegindin, Sean Adrien \n\nVersion Date:\n\nCommand>";
-    std:: cout << R"(
+    std:: string header= "Welcome to CSOPESY!\n\nGroup Developer: \nCastillo,Marvien Angel \nHerrera,Mikaela Gabrielle \nJimenez, Jaztin Jacob \nRegindin, Sean Adrien \n\nVersion Date:\n";
+    std:: string ascii_art = R"( 
   ___ ___   ___  ____  ____  _____  __
  / __/ __| / _ \|  _ \|  __|/ __\ \/ /
 | |  \__ \| | | | |_| |  _| \__ \\  /
 | |__ __| | |_| |  __/| |___ __| | |
  \___|___/ \___/|_|   |_____|___/|_|
-)" << std::endl;
+)";
+    std:: string main_header = header + ascii_art;
+    std:: cout << main_header; 
     std::string command;
     int speed;
-    std::string text;
+    std::string text = "This is a scrolling marquee text";
     do{
+        std:: cout << text;
+        std:: cout << " " << (40-text.size());
+        text += std::string(40-text.size(),' ');
+        std:: cout << "\nNew Text: " << text;
         std:: cin >> command;
         if (command == "help"){
             std:: cout << "Available Commands:\nstart_marquee - starts the marquee \"animation\"\nstop_marquee - stops the marquee \"animation\"\nset_text - accepts a text input and displays it as a marquee\nset_speed - sets the marquee animation refresh in milliseconds\nexit - terminates the console\n";
