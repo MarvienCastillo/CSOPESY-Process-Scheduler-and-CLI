@@ -57,6 +57,5 @@ CSOPESY-Marquee-console/
 ## Notes
 - The program automatically starts with the marquee running
 - Console cursor is hidden during execution for better visual experience
-- All console modifications are properly restored on exit
 - Windows-specific functions require compilation on Windows platform
-- If display issues occur, try running in a standard Windows Command Prompt
+- If display issues occur, try running in a standard Windows Command Prompt or expanding the terminal
