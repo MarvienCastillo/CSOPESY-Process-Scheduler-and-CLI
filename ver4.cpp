@@ -286,9 +286,13 @@ void command_process(const std::string& command_line) {
         }
     } else if (cmd == "exit") {
         is_running = false;
-        std::lock_guard<std::mutex> console_lock(console_mutex);
-        gotoxy(0, OUTPUT_LINE);
-        std::cout << "Exiting program. Goodbye!" << std::flush;
+        {
+            std::lock_guard<std::mutex> console_lock(console_mutex);
+            gotoxy(0, OUTPUT_LINE);
+            std::cout << "Exiting program. Goodbye!" << std::flush;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
+        exit(0);
     } else if (!cmd.empty()) {
         std::lock_guard<std::mutex> console_lock(console_mutex);
         gotoxy(0, OUTPUT_LINE);
