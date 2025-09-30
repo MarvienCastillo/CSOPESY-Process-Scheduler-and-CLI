@@ -1,8 +1,8 @@
 # CSOPESY Marquee Console
 
 ## Project Information
-**Course:** CSOPESY (Computer Systems Organization and Engineering)
-**Project:** Marquee Console Application
+**Course:** CSOPESY (Introduction to Operation Systems)
+**Project:** Marquee Console
 
 ## Group Members
 - Castillo, Marvien Angel
