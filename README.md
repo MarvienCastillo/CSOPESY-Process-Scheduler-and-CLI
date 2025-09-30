@@ -1,1 +1,1 @@
-# CSOPESY-Marquee-console-
+# CSOPESY-Marquee-console
