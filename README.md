@@ -1,4 +1,4 @@
-# CSOPESY Marquee Console Application
+# CSOPESY Marquee Console
 
 ## Project Information
 **Course:** CSOPESY (Computer Systems Organization and Engineering)
