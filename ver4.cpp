@@ -13,7 +13,7 @@
 
 // --- Shared State and Thread Control ---
 std::atomic<bool> is_running{true};
-std::atomic<bool> marquee_running{true}; // Start marquee by default
+std::atomic<bool> marquee_running{false}; // Marquee is stopped by default
 std::string marquee_window = "";
 std::atomic<int> marquee_speed{200}; // default 200 ms
 std::string header = "Welcome to CSOPESY!\n\nGroup Developer:\nCastillo, Marvien Angel\nHerrera, Mikaela Gabrielle\nJimenez, Jaztin Jacob\nRegindin, Sean Adrien\n\nVersion Date:\n";
@@ -48,7 +48,7 @@ std::string marquee_display_buffer = "This is a scrolling marquee text! ";
 std::mutex marquee_to_display_mutex;
 
 // Display parameters
-int display_width = 40; //change niyo yung width kung naliliitan kayo
+int display_width = 40;
 int marquee_pos = 0;
 
 // Console mutex for ver4 functionality
