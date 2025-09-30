@@ -176,16 +176,16 @@ void marquee_logic_thread_func() {
             if (!text.empty()) {
                 std::string padded = std::string(display_width, ' ') + text + std::string(display_width, ' ');
 
-                // Step 2: extract sliding window
+                // extract sliding window
                 std::string window = padded.substr(i, display_width);
 
-                // Step 3: advance index
+                // advance index
                 i++;
                 if (i > (int)padded.size() - display_width) {
                     i = 0; // restart scroll
                 }
 
-                // Step 4: update display buffer
+                // update display buffer
                 {
                     std::unique_lock<std::mutex> lock(prompt_mutex);
                     prompt_display_buffer = window;
