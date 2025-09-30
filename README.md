@@ -1,8 +1,8 @@
 # CSOPESY Marquee Console
 
 ## Project Information
-**Course:** CSOPESY (Introduction to Operation Systems)
-**Project:** Marquee Console
+- **Course:** CSOPESY (Introduction to Operation Systems)
+- **Project:** Marquee Console
 
 ## Group Members
 - Castillo, Marvien Angel
@@ -11,8 +11,8 @@
 - Regindin, Sean Adrien
 
 ## Entry Point
-**Main File:** main.cpp
-**Location:** CSOPESY-Marquee-console\main.cpp
+- **Main File:** main.cpp
+- **Location:** CSOPESY-Marquee-console\main.cpp
 
 ## System Requirements
 - Windows Operating System (uses Windows-specific APIs)
