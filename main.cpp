@@ -192,9 +192,7 @@ void marquee_logic_thread_func() {
                 }
             }
         } else {
-            // Clear marquee when stopped
             std::unique_lock<std::mutex> lock(prompt_mutex);
-            prompt_display_buffer = "[Marquee Stopped]";
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(marquee_speed));
     }
