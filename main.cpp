@@ -171,6 +171,10 @@ public:
 
     void reportUtil(){
         ofstream Logs("csopesy-log.txt");
+        if(!Logs.is_open()){
+            cout << "Error writing report.\n";
+            return;
+        }
         if(processList.empty()){
             Logs << "No processes exist right now\n";
             return;
