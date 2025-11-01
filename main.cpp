@@ -187,11 +187,17 @@ public:
 
         schedulerActive = true;
         cout << "Scheduler running...\n";
+
+        // background thread so CLI will stay responsive
+        thread([this]() {
+            int nextProcessTick = config.batchFreq;
         
-        while(schedulerActive){
-            cpuCycles++; 
-            return;
-        }
+            while(schedulerActive){
+                cpuCycles++; 
+                return;
+            }
+
+        }).detach();
     }
 
     void schedulerStop()
