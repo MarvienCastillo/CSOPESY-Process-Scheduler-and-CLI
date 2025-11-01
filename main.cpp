@@ -66,7 +66,9 @@ public:
     }
 };
 
-
+void printNotInitialized() {
+    cout << "Please initialize the system first!" << endl;
+}
 
 class Screen {
 private:
@@ -79,7 +81,7 @@ public:
     // im lowkey confused sa scheduler-start like?
     void createProcess(){
         if(!is_initialized){
-            cout << "System not yet initialized" << endl;
+            printNotInitialized();
             return;
         }
         
@@ -96,7 +98,7 @@ public:
     // Create Process
     void createProcess(const string& name){ // it means that this name cannot be modified and passed by reference
         if(!is_initialized){
-            cout << "System not yet initialized" << endl;
+            printNotInitialized();
             return;
         }
         
@@ -178,13 +180,24 @@ public:
     }
 
     void schedulerStart(){
+        if(!is_initialized){
+            printNotInitialized();
+            return;
+        }
+
         schedulerActive = true;
         cout << "Scheduler running...\n";
-        
-        while(schedulerActive){
 
-            
-        }
+        // background thread so CLI will stay responsive
+        thread([this]() {
+            int nextProcessTick = config.batchFreq;
+        
+            while(schedulerActive){
+                cpuCycles++; 
+                return;
+            }
+
+        }).detach();
     }
 
     void schedulerStop()
@@ -280,9 +293,8 @@ void initializeSystem(){
              << " | Quantum: " << config.timeQuantum << "\n";
     
 }
-void printNotInitialized() {
-    cout << "Please initialize the system first!" << endl;
-}
+
+
 int main(){
     srand(time(0));
     string command = "";
