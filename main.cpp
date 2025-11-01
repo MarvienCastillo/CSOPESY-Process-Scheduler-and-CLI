@@ -8,6 +8,7 @@
 #include <chrono>
 #include <iomanip>
 #include <filesystem>
+#include <mutex>
 std::string ascii_art = R"(
   ____ ____   ____  _____  _______ _________   __
  / ___/ ___| / _  \|  _  \|  _____/  ____\  \ / /
@@ -48,21 +49,14 @@ public:
 
 public:
     // constructor
-    Process(int pID, string name,int coreAssigned,int maxIns,int minIns){
+    Process(int pID, string name,int maxIns,int minIns){
         this->pID = pID;
         this->name = name;
-        this->coreAssigned = coreAssigned; // for scheduling algorithm ata to?
+        this->coreAssigned = -1; // -1 means not assigned to any core yet
         this->totalInstruction = rand() % (maxIns - minIns + 1) + minIns; // ito sabi ni bff hehehhe
         this->currentInstruction = 0; // initialize
         isFinished= false; 
         this->startTime = time(nullptr); // to get the curr date and time (ctime library)
-    }
-    void fcfs(){
-
-    }
-
-    void roundRobin(int quantum){
-
     }
 };
 
@@ -76,9 +70,114 @@ private:
     bool schedulerActive = false;
     int cpuCycles = 0;
     int cpuUsed = 0;
+
+    vector<thread> cpuThreads;
+    mutex processListMutex;
+
+    void fcfs(int coreID){
+        while (schedulerActive){
+            Process* curr = nullptr;
+
+            // find next process
+            {
+                lock_guard<mutex> lock(processListMutex);
+                for (auto& p : processList) {
+                    if (!p.isFinished && p.coreAssigned == -1) {
+                        p.coreAssigned = coreID;
+                        curr = &p;
+                        break;
+                    }
+                }
+            }
+
+            if (curr) {
+               while (curr->currentInstruction < curr->totalInstruction 
+                       && schedulerActive) {
+                    
+                    this_thread::sleep_for(chrono::milliseconds(config.delayTime));
+                    
+                    {
+                        lock_guard<mutex> lock(processListMutex);
+                        curr->currentInstruction++;
+
+                        if (curr->currentInstruction >= curr->totalInstruction) {
+                            curr->isFinished = true;
+                            curr->endTime = time(nullptr);
+                            std::cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << std::endl;
+                        }
+                    }
+                }
+                
+                // Release core
+                {
+                    lock_guard<mutex> lock(processListMutex);
+                    if (curr->isFinished) {
+                        curr->coreAssigned = -1;
+                    }
+                }
+            } else {
+                // No process available, idle
+                this_thread::sleep_for(chrono::milliseconds(100));
+            }
+        }
+    }
+
+    void roundRobin(int coreID){
+        // Round Robin scheduler placeholder (implement quantum handling here)
+        while (schedulerActive){
+            Process* curr = nullptr;
+
+            // find next process
+            {
+                lock_guard<mutex> lock(processListMutex);
+                for (auto& p : processList) {
+                    if (!p.isFinished && p.coreAssigned == -1) {
+                        p.coreAssigned = coreID;
+                        curr = &p;
+                        break;
+                    }
+                }
+            }
+
+            if (curr) {
+                int quantum = 0;
+
+                while (quantum < config.timeQuantum 
+                       && curr->currentInstruction < curr->totalInstruction 
+                       && schedulerActive) {
+                    
+                    this_thread::sleep_for(chrono::milliseconds(config.delayTime));
+                    
+                    {
+                        lock_guard<mutex> lock(processListMutex);
+                        curr->currentInstruction++;
+                        quantum++;
+
+                        if (curr->currentInstruction >= curr->totalInstruction) {
+                            curr->isFinished = true;
+                            curr->endTime = time(nullptr);
+                            cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
+                        }
+                    }
+                }
+                
+                // Release core
+                {
+                    lock_guard<mutex> lock(processListMutex);
+                    if (curr->isFinished) {
+                        curr->coreAssigned = -1;
+                    }
+                }
+            } else {
+                // No process available, idle
+                this_thread::sleep_for(chrono::milliseconds(100));
+            }
+        }
+    }
 public: 
 
     // im lowkey confused sa scheduler-start like?
+
     void createProcess(){
         if(!is_initialized){
             printNotInitialized();
