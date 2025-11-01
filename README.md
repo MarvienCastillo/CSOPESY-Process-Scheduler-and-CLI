@@ -23,7 +23,7 @@
 
 ### Using g++ (Recommended):
 ```bash
-g++ -std=c++11 ver4.cpp -o ver4.exe
+g++ -std=c++17 main.cpp -o main.exe
 ```
 
 ## Running the Program

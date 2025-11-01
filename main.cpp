@@ -129,26 +129,50 @@ public:
             return;
         }
 
+        // Calculate actual CPU usage
+        int runningProcesses = 0;
+        for(auto& p: processList){
+            if(!p.isFinished) runningProcesses++;
+        }
+        
+        cpuUsed = min(runningProcesses, config.numCPU);
+        float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
 
-        cout << "\n ------------------------------------------\n";
-        cout << "CPU Utilization: 100%"; // should be changed later
-        cout << "Cores used: " << cpuUsed << endl; // also this
-        cout << "Cores available: " << to_string(config.numCPU) << endl;
+        cout << "CPU Utilization: " << cpuUtilization << "%" << endl;
+        cout << "Cores used: " << cpuUsed << endl;
+        cout << "Cores available: " << to_string(config.numCPU) << endl << endl;
         
         cout << "---------------------------------------------\n";
         cout << "Running processes: \n";
         for(auto& p: processList){
-            if(!p.isFinished)
-                cout << p.name << setw(10) << p.startTime << setw(10)
-                << "Core: " << p.coreAssigned << setw(10) 
-                << p.currentInstruction << " / " << p.totalInstruction << endl;
+            if(!p.isFinished) {
+                // Properly set up timestamps 
+                struct tm timeinfo;
+                localtime_s(&timeinfo, &p.startTime);
+                
+                char dateBuffer[32];
+                strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+
+                cout << left << setw(15) << p.name 
+                 << setw(30) << dateBuffer
+                 << "Core: " << setw(10) << p.coreAssigned 
+                 << p.currentInstruction << "/" << p.totalInstruction << "\n";
+            }
         }
         cout << "Finished processes: \n";
         for(auto& p: processList){
-            if(p.isFinished)
-                cout << p.name << setw(10) << p.startTime << setw(10)
-                << "Finished" << setw(10) 
-                << p.currentInstruction << " / " << p.totalInstruction << endl;
+            if(p.isFinished) {
+                struct tm timeinfo;
+                localtime_s(&timeinfo, &p.startTime);
+                
+                char dateBuffer[32];
+                strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+                
+                cout << left << setw(15) << p.name 
+                    << setw(15) << dateBuffer
+                    << "Finished" << setw(15) << " "
+                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+            }
         }
 
     }
@@ -179,31 +203,56 @@ public:
             Logs << "No processes exist right now\n";
             return;
         }
-        Logs << "\n ------------------------------------------\n";
-        Logs << "CPU Utilization: 100%"; // should be changed later
-        Logs << "Cores used: " << cpuUsed << endl; // also this
-        Logs << "Cores available: " << to_string(config.numCPU) << endl;
+        
+        // Calculate actual CPU usage
+        int runningProcesses = 0;
+        for(auto& p: processList){
+            if(!p.isFinished) runningProcesses++;
+        }
+        
+        cpuUsed = min(runningProcesses, config.numCPU);
+        float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
+        
+        Logs << "\n------------------------------------------\n";
+        Logs << "CPU Utilization: " << fixed << setprecision(2) << cpuUtilization << "%\n";
+        Logs << "Cores used: " << cpuUsed << "\n";
+        Logs << "Cores available: " << config.numCPU << "\n";
         
         Logs << "---------------------------------------------\n";
-        Logs << "Running processes: \n";
+        Logs << "Running processes:\n";
         for(auto& p: processList){
-            if(!p.isFinished)
-                Logs << p.name << setw(10) << p.startTime << setw(10)
-                << "Core: " << p.coreAssigned << setw(10) 
-                << p.currentInstruction << " / " << p.totalInstruction << endl;
+            if(!p.isFinished){
+                struct tm timeinfo;
+                localtime_s(&timeinfo, &p.startTime);
+                
+                char dateBuffer[32];
+                strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+                
+                Logs << left << setw(15) << p.name 
+                    << setw(35) << dateBuffer
+                    << "Core: " << setw(10) << p.coreAssigned 
+                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+            }
         }
-        Logs << "\n\nFinished processes: \n";
+        
+        Logs << "\nFinished processes:\n";
         for(auto& p: processList){
-            if(p.isFinished)
-                Logs << p.name << setw(10) << p.startTime << setw(10)
-                << "Finished" << setw(10) 
-                << p.currentInstruction << " / " << p.totalInstruction << endl;
+            if(p.isFinished){
+                struct tm timeinfo;
+                localtime_s(&timeinfo, &p.startTime);
+                
+                char dateBuffer[32];
+                strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+                
+                Logs << left << setw(15) << p.name 
+                    << setw(35) << dateBuffer
+                    << "Finished" << setw(10) << " "
+                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+            }
         }
         
         Logs.close();
-
         cout << "Report generated at " << std::filesystem::current_path() << "/csopesy-log.txt" << endl;
-        
     }
 };
 
@@ -242,7 +291,7 @@ int main(){
     while(true){
         cout << "\n\nroot:\\> ";
         getline(cin,command);
-        if(command == "initialize"){
+        if(command == "initialize" || command == "init"){
             initializeSystem();
         }
         else if(command.compare("screen -s") >= 0){
