@@ -284,8 +284,22 @@ public:
             return;
         }
 
+        if (schedulerActive) {
+            cout << "Scheduler is already running...\n";
+            return; //to avoid duplicate scheduler thread
+        }
+
         schedulerActive = true;
         cout << "Scheduler running...\n";
+
+        //create threads based on specified algorithm
+        for (int i = 0; i < config.numCPU; i++) {
+            if (config.schedulingAlgorithm == "fcfs")
+                cpuThreads.emplace_back(&Screen::fcfs, this, i);
+            else if (config.schedulingAlgorithm == "rr")
+                cpuThreads.emplace_back(&Screen::roundRobin, this, i);
+        }
+
 
         // background thread so CLI will stay responsive
         thread([this]() {
@@ -293,8 +307,42 @@ public:
         
             while(schedulerActive){
                 cpuCycles++; 
-                return;
+
+                //create new process
+                if (cpuCycles >= nextProcessTick) {
+                    if (processList.size() < MAX_PROCESS) {
+                        createProcess(); // generates process
+                    }
+                    nextProcessTick += config.batchFreq;
+                }
+
+                //cpu execution
+                int activeCores = 0; //to track how many cpu cores were used
+                for (auto &p : processList) {
+                    if (!p.isFinished && activeCores < config.numCPU) {
+                        p.currentInstruction++;
+
+                        if (p.currentInstruction >= p.totalInstruction) {
+                            p.isFinished = true;
+                            p.endTime = time(nullptr);
+                            //cout << "Process " << p.name << " finished execution.\n";
+                            //^ for checking
+                        }
+
+                        activeCores++;
+                    }
+                }
+                cpuUsed = min(activeCores, config.numCPU);
+
+                //tick delay
+                if (config.delayTime > 0)
+                    this_thread::sleep_for(chrono::milliseconds(config.delayTime));
+                else
+                    this_thread::sleep_for(chrono::milliseconds(100));
+
             }
+
+            cout << "Scheduler loop stopped.\n";
 
         }).detach();
     }
