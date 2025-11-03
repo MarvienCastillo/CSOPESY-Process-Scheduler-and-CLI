@@ -190,7 +190,7 @@ public:
         if(pID < 10)
             name += "0";
         name = name + to_string(pID); 
-        processList.emplace_back(pID,name,config.numCPU,config.maxCommand,config.minCommand);
+        processList.emplace_back(pID,name,config.maxCommand,config.minCommand);
         cout << "Process  " << name << " (ID: " << pID << ") created on Core " << config.numCPU << " with "
              << processList.back().totalInstruction << " instructions." << endl;
     }
@@ -202,7 +202,7 @@ public:
         }
         
         int pID = processList.size() + 1;
-        processList.emplace_back(pID,name,config.numCPU,config.maxCommand,config.minCommand);
+        processList.emplace_back(pID,name,config.maxCommand,config.minCommand);
         cout << "Process  " << name << " (ID: " << pID << ") created on Core " << config.numCPU << " with "
              << processList.back().totalInstruction << " instructions." << endl;
     }
