@@ -179,7 +179,8 @@ public:
     // im lowkey confused sa scheduler-start like?
     void runScreen(){
         string screenCommmand = "";
-        while(true){
+        bool flag = true;
+        while(flag){
             cout << "\n\nroot:\\> ";
             getline(cin,screenCommmand);
             if(screenCommmand.compare("screen -s") >= 0){
@@ -218,7 +219,7 @@ public:
                 reportUtil();
             }
             else if(screenCommmand.compare("exit") == 0){
-                exit(0);
+                flag= false;
             }
         }
     }
