@@ -180,6 +180,8 @@ public:
     void runScreen(){
         string screenCommmand = "";
         while(true){
+            cout << "\n\nroot:\\> ";
+            getline(cin,screenCommmand);
             if(screenCommmand.compare("screen -s") >= 0){
                 if(is_initialized){
                     string name = screenCommmand.substr(10);
@@ -494,9 +496,7 @@ int main(){
         getline(cin,command);
         if(command == "initialize" || command == "init"){
             initializeSystem();
-            if(is_initialized){
-                screen.runScreen();
-            }
+            screen.runScreen();
         }
         else if(command == "exit"){
             exit(0);
