@@ -70,7 +70,7 @@ private:
     bool schedulerActive = false;
     int cpuCycles = 0;
     int cpuUsed = 0;
-
+    int cpuAvail = 0;
     vector<thread> cpuThreads;
     mutex processListMutex;
 
@@ -283,10 +283,11 @@ public:
         
         cpuUsed = min(runningProcesses, config.numCPU);
         float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
+        cpuAvail = config.numCPU - cpuUsed;
 
         cout << "CPU Utilization: " << cpuUtilization << "%" << endl;
         cout << "Cores used: " << cpuUsed << endl;
-        cout << "Cores available: " << to_string(config.numCPU) << endl << endl;
+        cout << "Cores available: " << cpuAvail << endl << endl;
         
         cout << "---------------------------------------------\n";
         cout << "Running processes: \n";
@@ -504,10 +505,18 @@ int main(){
         getline(cin,command);
         if(command == "initialize" || command == "init"){
             initializeSystem();
-            screen.runScreen();
+            if(is_initialized){
+                screen.runScreen();
+            }
+            else{
+                printNotInitialized();
+            }
         }
         else if(command == "exit"){
             exit(0);
+        }
+        else{
+            printNotInitialized();
         }
     }
     return 0;
