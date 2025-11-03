@@ -176,30 +176,40 @@ public:
 
     // im lowkey confused sa scheduler-start like?
     void runScreen(){
-        string screenCommmand = "";
+        string screenCommand = "";
         bool flag = true;
         while(flag){
             cout << "\n\nroot:\\> ";
-            getline(cin,screenCommmand);
-            if(screenCommmand.compare("screen -s") >= 0){
+            getline(cin, screenCommand);
+            
+            if(screenCommand.find("screen -s ") == 0) {
                 if(is_initialized){
-                    string name = screenCommmand.substr(10);
-                    createProcess(name);
+                    string name = screenCommand.substr(10);
+                    if (name.empty()) {
+                        cout << "Please provide a process name.\n";
+                    } else {
+                        createProcess(name);
+                        processScreen(name); // Enter the process screen
+                    }
                 }
                 else{
                     printNotInitialized();
                 }
             }
-            else if(screenCommmand.compare("screen -r") >= 0){
+            else if(screenCommand.find("screen -r ") == 0) {
                 if(is_initialized){
-                    string name = screenCommmand.substr(10);
-                    showProcess(name);
+                    string name = screenCommand.substr(10);
+                    if (name.empty()) {
+                        cout << "Please provide a process name.\n";
+                    } else {
+                        processScreen(name); // Reattach to existing process
+                    }
                 }
                 else{
                     printNotInitialized();
                 }
             }
-            else if(screenCommmand.compare("screen -ls") == 0){
+            else if(screenCommand == "screen -ls") {
                 if(is_initialized){
                     screenList();
                 }
@@ -207,20 +217,24 @@ public:
                     printNotInitialized();
                 }
             }
-            else if(screenCommmand.compare("scheduler-start") == 0){
+            else if(screenCommand == "scheduler-start") {
                 schedulerStart();
             }
-            else if(screenCommmand.compare("scheduler-stop") == 0){
+            else if(screenCommand == "scheduler-stop") {
                 schedulerStop();
             }
-            else if(screenCommmand.compare("report-util") == 0 ){
+            else if(screenCommand == "report-util") {
                 reportUtil();
             }
-            else if(screenCommmand.compare("exit") == 0){
-                flag= false;
+            else if(screenCommand == "exit") {
+                flag = false;
+            }
+            else if(!screenCommand.empty()) {
+                cout << "Unknown command: " << screenCommand << "\n";
             }
         }
     }
+
     void createProcess(){
         if(!is_initialized){
             printNotInitialized();
@@ -458,6 +472,78 @@ public:
         
         Logs.close();
         cout << "Report generated at " << std::filesystem::current_path() << "/csopesy-log.txt" << endl;
+    }
+
+    void processScreen(string processName) {
+        // Find the process
+        Process* targetProcess = nullptr;
+        {
+            lock_guard<mutex> lock(processListMutex);
+            for (auto& p : processList) {
+                if (p.name == processName) {
+                    targetProcess = &p;
+                    break;
+                }
+            }
+        }
+
+        if (targetProcess == nullptr) {
+            cout << "Process " << processName << " not found.\n";
+            return;
+        }
+
+        // Check if process has already finished
+        if (targetProcess->isFinished) {
+            cout << "Process " << processName << " has already finished execution.\n";
+            return;
+        }
+
+        cout << "\n----------------------------------------------\n";
+        cout << "Process: " << targetProcess->name << "\n";
+        cout << "Entering process screen. Type 'process-smi' for details or 'exit' to return.\n";
+        cout << "----------------------------------------------\n";
+
+        string processCommand;
+        bool inProcessScreen = true;
+
+        while (inProcessScreen) {
+            cout << "\nroot:\\" << processName << "> ";
+            getline(cin, processCommand);
+
+            if (processCommand == "process-smi") {
+                lock_guard<mutex> lock(processListMutex);
+                
+                cout << "\n----------------------------------------------\n";
+                cout << "Process: " << targetProcess->name << "\n";
+                cout << "ID: " << targetProcess->pID << "\n";
+                
+                struct tm timeinfo;
+                localtime_s(&timeinfo, &targetProcess->startTime);
+                char dateBuffer[32];
+                strftime(dateBuffer, sizeof(dateBuffer), "%m/%d/%Y, %I:%M:%S %p", &timeinfo);
+                
+                cout << "Created: " << dateBuffer << "\n";
+                cout << "\nCurrent instruction line: " << targetProcess->currentInstruction << "\n";
+                cout << "Lines of code: " << targetProcess->totalInstruction << "\n";
+                
+                if (targetProcess->isFinished) {
+                    cout << "\nFinished!\n";
+                    cout << "----------------------------------------------\n";
+                    inProcessScreen = false; // Auto-exit when finished
+                    cout << "\nProcess has completed. Returning to main menu...\n";
+                } else {
+                    cout << "----------------------------------------------\n";
+                }
+            }
+            else if (processCommand == "exit") {
+                inProcessScreen = false;
+                cout << "\nReturning to main menu...\n";
+                cout << "----------------------------------------------\n";
+            }
+            else if (!processCommand.empty()) {
+                cout << "Unknown command. Available commands: process-smi, exit\n";
+            }
+        }
     }
 };
 
