@@ -461,30 +461,37 @@ public:
     }
 };
 
-void initializeSystem(){
-    ifstream configFile;
-    configFile.open("config.txt");
-    if(!configFile){
-        cout << "Unable to open config file!";
-        exit(1); // terminate with error
-    }
-    while(!configFile.eof()){
-        configFile >> config.numCPU;
-        configFile >> config.schedulingAlgorithm;
-        configFile >> config.timeQuantum;
-        configFile >> config.batchFreq;
-        configFile >> config.minCommand;
-        configFile >> config.maxCommand;
-        configFile >> config.delayTime;
-    }
-    configFile.close();
-    is_initialized = true;
-    cout << "System initialized successfully!\n";
+void initializeSystem() {
+        ifstream file("config.txt");
+        if (!file.is_open()) {
+            cout << "Error: config.txt not found.\n";
+            return;
+        }
+
+        file >> ws;
+        file >> ws; // skip whitespace
+        file >> ws;
+
+        file.seekg(0); // start from beginning
+        string key;
+        while (file >> key) {
+            if (key == "num-cpu") file >> config.numCPU;
+            else if (key == "scheduler") file >> config.schedulingAlgorithm;
+            else if (key == "quantum-cycles") file >> config.timeQuantum;
+            else if (key == "batch-process-freq") file >> config.batchFreq;
+            else if (key == "min-ins") file >> config.minCommand;
+            else if (key == "max-ins") file >> config.maxCommand;
+            else if (key == "delay-per-exec") file >> config.delayTime;
+        }
+
+        file.close();
+        is_initialized = true;
+
+        cout << "System initialized successfully!\n";
         cout << "CPUs: " << config.numCPU
              << " | Scheduler: " << config.schedulingAlgorithm
              << " | Quantum: " << config.timeQuantum << "\n";
-    
-}
+    }
 
 
 int main(){
