@@ -177,7 +177,49 @@ private:
 public: 
 
     // im lowkey confused sa scheduler-start like?
-
+    void runScreen(){
+        string screenCommmand = "";
+        while(true){
+            if(screenCommmand.compare("screen -s") >= 0){
+                if(is_initialized){
+                    string name = screenCommmand.substr(10);
+                    createProcess(name);
+                }
+                else{
+                    printNotInitialized();
+                }
+            }
+            else if(screenCommmand.compare("screen -r") >= 0){
+                if(is_initialized){
+                    string name = screenCommmand.substr(10);
+                    showProcess(name);
+                }
+                else{
+                    printNotInitialized();
+                }
+            }
+            else if(screenCommmand.compare("screen -ls") == 0){
+                if(is_initialized){
+                    screenList();
+                }
+                else{
+                    printNotInitialized();
+                }
+            }
+            else if(screenCommmand.compare("scheduler-start") == 0){
+                schedulerStart();
+            }
+            else if(screenCommmand.compare("scheduler-stop") == 0){
+                schedulerStop();
+            }
+            else if(screenCommmand.compare("report-util") == 0 ){
+                reportUtil();
+            }
+            else if(screenCommmand.compare("exit") == 0){
+                exit(0);
+            }
+        }
+    }
     void createProcess(){
         if(!is_initialized){
             printNotInitialized();
@@ -452,41 +494,9 @@ int main(){
         getline(cin,command);
         if(command == "initialize" || command == "init"){
             initializeSystem();
-        }
-        else if(command.compare("screen -s") >= 0){
             if(is_initialized){
-                string name = command.substr(10);
-                screen.createProcess(name);
+                screen.runScreen();
             }
-            else{
-                printNotInitialized();
-            }
-        }
-        else if(command.compare("screen -r") >= 0){
-            if(is_initialized){
-                string name = command.substr(10);
-                screen.showProcess(name);
-            }
-            else{
-                printNotInitialized();
-            }
-        }
-        else if(command.compare("screen -ls") == 0){
-            if(is_initialized){
-                screen.screenList();
-            }
-            else{
-                printNotInitialized();
-            }
-        }
-        else if(command.compare("scheduler-start") == 0){
-            screen.schedulerStart();
-        }
-        else if(command.compare("scheduler-stop") == 0){
-            screen.schedulerStop();
-        }
-        else if(command.compare("report-util") == 0 ){
-            screen.reportUtil();
         }
         else if(command == "exit"){
             exit(0);
