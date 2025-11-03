@@ -91,8 +91,9 @@ private:
             }
 
             if (curr) {
-               while (curr->currentInstruction < curr->totalInstruction 
-                       && schedulerActive) {
+                // Execute process until completion (FCFS)
+                while (curr->currentInstruction < curr->totalInstruction 
+                    && schedulerActive) {
                     
                     this_thread::sleep_for(chrono::milliseconds(config.delayTime));
                     
@@ -102,13 +103,13 @@ private:
 
                         if (curr->currentInstruction >= curr->totalInstruction) {
                             curr->isFinished = true;
-                            curr->endTime = time(nullptr);
-                            std::cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << std::endl;
+                            curr->endTime = time(nullptr);  // Record actual finish time
+                            cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                         }
                     }
                 }
                 
-                // Release core
+                // Release core when finished
                 {
                     lock_guard<mutex> lock(processListMutex);
                     if (curr->isFinished) {
@@ -123,7 +124,6 @@ private:
     }
 
     void roundRobin(int coreID){
-        // Round Robin scheduler placeholder (implement quantum handling here)
         while (schedulerActive){
             Process* curr = nullptr;
 
@@ -143,8 +143,8 @@ private:
                 int quantum = 0;
 
                 while (quantum < config.timeQuantum 
-                       && curr->currentInstruction < curr->totalInstruction 
-                       && schedulerActive) {
+                    && curr->currentInstruction < curr->totalInstruction 
+                    && schedulerActive) {
                     
                     this_thread::sleep_for(chrono::milliseconds(config.delayTime));
                     
@@ -155,18 +155,16 @@ private:
 
                         if (curr->currentInstruction >= curr->totalInstruction) {
                             curr->isFinished = true;
-                            curr->endTime = time(nullptr);
+                            curr->endTime = time(nullptr);  // Record actual finish time
                             cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                         }
                     }
                 }
                 
-                // Release core
+                // Release core ALWAYS (even if not finished - for Round Robin)
                 {
                     lock_guard<mutex> lock(processListMutex);
-                    if (curr->isFinished) {
-                        curr->coreAssigned = -1;
-                    }
+                    curr->coreAssigned = -1;
                 }
             } else {
                 // No process available, idle
@@ -229,15 +227,17 @@ public:
             return;
         }
         
+        lock_guard<mutex> lock(processListMutex);
         string name = "P";
         
         int pID = processList.size() + 1;
         if(pID < 10)
             name += "0";
         name = name + to_string(pID); 
-        processList.emplace_back(pID,name,config.maxCommand,config.minCommand);
-        cout << "Process  " << name << " (ID: " << pID << ") created on Core " << config.numCPU << " with "
-             << processList.back().totalInstruction << " instructions." << endl;
+        processList.emplace_back(pID, name, config.maxCommand, config.minCommand);
+        
+        cout << "Process " << name << " (ID: " << pID << ") created with "
+            << processList.back().totalInstruction << " instructions." << endl;
     }
     // Create Process
     void createProcess(const string& name){ // it means that this name cannot be modified and passed by reference
@@ -246,10 +246,12 @@ public:
             return;
         }
         
+        lock_guard<mutex> lock(processListMutex);
         int pID = processList.size() + 1;
-        processList.emplace_back(pID,name,config.maxCommand,config.minCommand);
-        cout << "Process  " << name << " (ID: " << pID << ") created on Core " << config.numCPU << " with "
-             << processList.back().totalInstruction << " instructions." << endl;
+        processList.emplace_back(pID, name, config.maxCommand, config.minCommand);
+        
+        cout << "Process " << name << " (ID: " << pID << ") created with "
+            << processList.back().totalInstruction << " instructions." << endl;
     }
     // Show process/es
     void showProcess(string name){
@@ -275,53 +277,59 @@ public:
             return;
         }
 
+        lock_guard<mutex> lock(processListMutex);
+        
         // Calculate actual CPU usage
         int runningProcesses = 0;
         for(auto& p: processList){
-            if(!p.isFinished) runningProcesses++;
+            if(!p.isFinished && p.coreAssigned != -1) runningProcesses++;
         }
         
-        cpuUsed = min(runningProcesses, config.numCPU);
-        float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
+        cpuUsed = runningProcesses;
         cpuAvail = config.numCPU - cpuUsed;
+        float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
 
-        cout << "CPU Utilization: " << cpuUtilization << "%" << endl;
-        cout << "Cores used: " << cpuUsed << endl;
-        cout << "Cores available: " << cpuAvail << endl << endl;
+        cout << "\nCPU Utilization: " << fixed << setprecision(2) << cpuUtilization << "%\n";
+        cout << "Cores used: " << cpuUsed << "\n";
+        cout << "Cores available: " << cpuAvail << "\n\n";
         
         cout << "---------------------------------------------\n";
-        cout << "Running processes: \n";
+        cout << "Running processes:\n";
         for(auto& p: processList){
             if(!p.isFinished) {
-                // Properly set up timestamps 
                 struct tm timeinfo;
                 localtime_s(&timeinfo, &p.startTime);
                 
                 char dateBuffer[32];
                 strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
 
-                cout << left << setw(15) << p.name 
-                 << setw(30) << dateBuffer
-                 << "Core: " << setw(10) << p.coreAssigned 
-                 << p.currentInstruction << "/" << p.totalInstruction << "\n";
-            }
-        }
-        cout << "Finished processes: \n";
-        for(auto& p: processList){
-            if(p.isFinished) {
-                struct tm timeinfo;
-                localtime_s(&timeinfo, &p.startTime);
-                
-                char dateBuffer[32];
-                strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+                string coreStr = (p.coreAssigned == -1) ? "N/A" : to_string(p.coreAssigned);
                 
                 cout << left << setw(15) << p.name 
-                    << setw(15) << dateBuffer
-                    << "Finished" << setw(15) << " "
+                    << setw(35) << dateBuffer
+                    << "Core: " << setw(10) << coreStr
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
             }
         }
-
+        
+        cout << "\nFinished processes:\n";
+        for(auto& p: processList){
+            if(p.isFinished) {
+                struct tm startInfo, endInfo;
+                localtime_s(&startInfo, &p.startTime);
+                localtime_s(&endInfo, &p.endTime);  // Use endTime instead
+                
+                char startBuffer[32], endBuffer[32];
+                strftime(startBuffer, sizeof(startBuffer), "(%m/%d/%Y %I:%M:%S%p)", &startInfo);
+                strftime(endBuffer, sizeof(endBuffer), "(%m/%d/%Y %I:%M:%S%p)", &endInfo);
+                
+                cout << left << setw(15) << p.name 
+                    << setw(35) << startBuffer
+                    << setw(35) << endBuffer  // Show finish time
+                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+            }
+        }
+        cout << "---------------------------------------------\n";
     }
 
     void schedulerStart(){
@@ -331,72 +339,55 @@ public:
         }
 
         if (schedulerActive) {
-            cout << "Scheduler is already running...\n";
-            return; //to avoid duplicate scheduler thread
+            cout << "Scheduler is already running!\n";
+            return;
         }
 
         schedulerActive = true;
-        cout << "Scheduler running...\n";
-
-        //create threads based on specified algorithm
-        for (int i = 0; i < config.numCPU; i++) {
-            if (config.schedulingAlgorithm == "fcfs")
-                cpuThreads.emplace_back(&Screen::fcfs, this, i);
-            else if (config.schedulingAlgorithm == "rr")
-                cpuThreads.emplace_back(&Screen::roundRobin, this, i);
-        }
-
-
-        // background thread so CLI will stay responsive
-        thread([this]() {
-            int nextProcessTick = config.batchFreq;
         
-            while(schedulerActive){
-                cpuCycles++; 
-
-                //create new process
-                if (cpuCycles >= nextProcessTick) {
-                    if (processList.size() < MAX_PROCESS) {
-                        createProcess(); // generates process
-                    }
-                    nextProcessTick += config.batchFreq;
-                }
-
-                //cpu execution
-                int activeCores = 0; //to track how many cpu cores were used
-                for (auto &p : processList) {
-                    if (!p.isFinished && activeCores < config.numCPU) {
-                        p.currentInstruction++;
-
-                        if (p.currentInstruction >= p.totalInstruction) {
-                            p.isFinished = true;
-                            p.endTime = time(nullptr);
-                            //cout << "Process " << p.name << " finished execution.\n";
-                            //^ for checking
-                        }
-
-                        activeCores++;
-                    }
-                }
-                cpuUsed = min(activeCores, config.numCPU);
-
-                //tick delay
-                if (config.delayTime > 0)
-                    this_thread::sleep_for(chrono::milliseconds(config.delayTime));
-                else
-                    this_thread::sleep_for(chrono::milliseconds(100));
-
+        // Determine which algorithm to use based on config
+        if (config.schedulingAlgorithm == "\"fcfs\"" || config.schedulingAlgorithm == "fcfs") {
+            cout << "Scheduler started with FCFS on " << config.numCPU << " cores.\n";
+            
+            // Create one thread per CPU core running FCFS
+            for (int i = 0; i < config.numCPU; i++) {
+                cpuThreads.emplace_back(&Screen::fcfs, this, i);
             }
-
-            cout << "Scheduler loop stopped.\n";
-
-        }).detach();
+        } 
+        else if (config.schedulingAlgorithm == "\"rr\"" || config.schedulingAlgorithm == "rr") {
+            cout << "Scheduler started with Round Robin (Quantum: " << config.timeQuantum 
+                << ") on " << config.numCPU << " cores.\n";
+            
+            // Create one thread per CPU core running Round Robin
+            for (int i = 0; i < config.numCPU; i++) {
+                cpuThreads.emplace_back(&Screen::roundRobin, this, i);
+            }
+        }
+        else {
+            cout << "Unknown scheduling algorithm: " << config.schedulingAlgorithm << "\n";
+            cout << "Please use 'fcfs' or 'rr' in config.txt\n";
+            schedulerActive = false;
+        }
     }
 
-    void schedulerStop()
-    {
+    void schedulerStop(){
+        if (!schedulerActive) {
+            cout << "Scheduler is not running!\n";
+            return;
+        }
+        
         schedulerActive = false;
-        cout << "Scheduler stopped!";
+        cout << "Stopping scheduler...\n";
+        
+        // Wait for all CPU threads to finish
+        for (auto& t : cpuThreads) {
+            if (t.joinable()) {
+                t.join();
+            }
+        }
+        cpuThreads.clear();
+        
+        cout << "Scheduler stopped!\n";
     }
 
     void reportUtil(){
@@ -407,22 +398,26 @@ public:
         }
         if(processList.empty()){
             Logs << "No processes exist right now\n";
+            Logs.close();
             return;
         }
+        
+        lock_guard<mutex> lock(processListMutex);
         
         // Calculate actual CPU usage
         int runningProcesses = 0;
         for(auto& p: processList){
-            if(!p.isFinished) runningProcesses++;
+            if(!p.isFinished && p.coreAssigned != -1) runningProcesses++;
         }
         
-        cpuUsed = min(runningProcesses, config.numCPU);
+        cpuUsed = runningProcesses;
+        cpuAvail = config.numCPU - cpuUsed;
         float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
         
         Logs << "\n------------------------------------------\n";
         Logs << "CPU Utilization: " << fixed << setprecision(2) << cpuUtilization << "%\n";
         Logs << "Cores used: " << cpuUsed << "\n";
-        Logs << "Cores available: " << config.numCPU << "\n";
+        Logs << "Cores available: " << cpuAvail << "\n";
         
         Logs << "---------------------------------------------\n";
         Logs << "Running processes:\n";
@@ -433,10 +428,12 @@ public:
                 
                 char dateBuffer[32];
                 strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+
+                string coreStr = (p.coreAssigned == -1) ? "N/A" : to_string(p.coreAssigned);
                 
                 Logs << left << setw(15) << p.name 
                     << setw(35) << dateBuffer
-                    << "Core: " << setw(10) << p.coreAssigned 
+                    << "Core: " << setw(10) << coreStr
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
             }
         }
@@ -444,15 +441,17 @@ public:
         Logs << "\nFinished processes:\n";
         for(auto& p: processList){
             if(p.isFinished){
-                struct tm timeinfo;
-                localtime_s(&timeinfo, &p.startTime);
+                struct tm startInfo, endInfo;
+                localtime_s(&startInfo, &p.startTime);
+                localtime_s(&endInfo, &p.endTime);  // Use endTime
                 
-                char dateBuffer[32];
-                strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
+                char startBuffer[32], endBuffer[32];
+                strftime(startBuffer, sizeof(startBuffer), "(%m/%d/%Y %I:%M:%S%p)", &startInfo);
+                strftime(endBuffer, sizeof(endBuffer), "(%m/%d/%Y %I:%M:%S%p)", &endInfo);
                 
                 Logs << left << setw(15) << p.name 
-                    << setw(35) << dateBuffer
-                    << "Finished" << setw(10) << " "
+                    << setw(35) << startBuffer
+                    << setw(35) << endBuffer  // Show finish time
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
             }
         }
