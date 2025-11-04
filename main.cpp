@@ -12,6 +12,15 @@
 #include <map>
 #include <cstdint>
 
+void clearConsole() {
+#ifdef _WIN32
+    system("cls");   // Windows
+#else
+    system("clear"); // Linux / Mac
+#endif
+}
+
+
 std::string ascii_art = R"(
   ____ ____   ____  _____  _______ _________   __
  / ___/ ___| / _  \|  _  \|  _____/  ____\  \ / /
@@ -784,6 +793,7 @@ int main(){
                     cout << "Please provide a process name.\n";
                 } else {
                     screen.createProcess(name);
+                    clearConsole();
                     screen.processScreen(name);
                 }
             }
@@ -797,6 +807,7 @@ int main(){
                 if (name.empty()) {
                     cout << "Please provide a process name.\n";
                 } else {
+                    clearConsole();
                     screen.processScreen(name);
                 }
             }
