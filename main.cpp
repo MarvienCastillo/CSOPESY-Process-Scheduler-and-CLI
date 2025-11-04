@@ -11,7 +11,7 @@
 #include <mutex>
 #include <map>
 #include <cstdint>
-
+#include <algorithm> // for std::remove
 void clearConsole() {
 #ifdef _WIN32
     system("cls");   // Windows
@@ -152,7 +152,7 @@ public:
     Process(int pID, string name,int maxIns,int minIns){
         this->pID = pID;
         this->name = name;
-        this->coreAssigned = -1; // -1 means not assigned to any core yet
+        this->coreAssigned = rand() % config.numCPU;
         this->totalInstruction = rand() % (maxIns - minIns + 1) + minIns; // ito sabi ni bff hehehhe
         this->currentInstruction = 0; // initialize
         isFinished= false; 
@@ -516,6 +516,9 @@ public:
                     << "Core: " << setw(10) << coreStr
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
             }
+            else{
+                cout << "No running process found!" << endl;
+            }
         }
         
         cout << "\nFinished processes:\n";
@@ -533,6 +536,9 @@ public:
                     << setw(35) << startBuffer
                     << setw(35) << endBuffer  // Show finish time
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
+            }
+            else{
+                cout << "No finished process found!" << endl;
             }
         }
         cout << "---------------------------------------------\n";
@@ -642,6 +648,9 @@ public:
                     << "Core: " << setw(10) << coreStr
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
             }
+            else{
+                Logs << "No running process found" << endl;
+            }
         }
         
         Logs << "\nFinished processes:\n";
@@ -660,10 +669,18 @@ public:
                     << setw(35) << endBuffer  // Show finish time
                     << p.currentInstruction << "/" << p.totalInstruction << "\n";
             }
+            else{
+                Logs << "No finished process found" << endl;
+            }
         }
+        Logs << "---------------------------------------------\n";
         
         Logs.close();
-        cout << "Report generated at " << std::filesystem::current_path() << "/csopesy-log.txt" << endl;
+        // making the path 
+        filesystem::path path_object = std::filesystem::current_path();
+        string path_string = path_object.string();
+
+        cout << "Report generated at " << path_string << "\\csopesy-log.txt" << endl;
     }
 
     void processScreen(string processName) {
@@ -774,7 +791,7 @@ int main(){
     string command = "";
     cout << ascii_art << header << "\n--------------------------------------\n" << flush;
     Screen screen;
-    
+
     while(true){
         cout << "\n\nroot:\\> ";
         getline(cin, command);
