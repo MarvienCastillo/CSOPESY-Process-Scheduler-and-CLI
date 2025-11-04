@@ -152,8 +152,8 @@ public:
     Process(int pID, string name,int maxIns,int minIns){
         this->pID = pID;
         this->name = name;
-        this->coreAssigned = rand() % config.numCPU;
-        this->totalInstruction = rand() % (maxIns - minIns + 1) + minIns; // ito sabi ni bff hehehhe
+        this->coreAssigned = -1;
+        this->totalInstruction = rand() % (maxIns - minIns + 1) + minIns;
         this->currentInstruction = 0; // initialize
         isFinished= false; 
         this->startTime = time(nullptr); // to get the curr date and time (ctime library)
@@ -355,7 +355,7 @@ private:
                         if (curr->currentInstruction >= curr->totalInstruction) {
                             curr->isFinished = true;
                             curr->endTime = time(nullptr);
-                            cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
+                            //cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                         }
                     }
                 }
@@ -411,7 +411,7 @@ private:
                         if (curr->currentInstruction >= curr->totalInstruction) {
                             curr->isFinished = true;
                             curr->endTime = time(nullptr);
-                            cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
+                            //cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                         }
                     }
                 }
@@ -442,8 +442,8 @@ public:
         name = name + to_string(pID); 
         processList.emplace_back(pID, name, config.maxCommand, config.minCommand);
         
-        cout << "Process " << name << " (ID: " << pID << ") created with "
-            << processList.back().totalInstruction << " instructions." << endl;
+        //cout << "Process " << name << " (ID: " << pID << ") created with "
+        //    << processList.back().totalInstruction << " instructions." << endl;
     }
     // Create Process
     void createProcess(const string& name){ // it means that this name cannot be modified and passed by reference
@@ -456,8 +456,8 @@ public:
         int pID = processList.size() + 1;
         processList.emplace_back(pID, name, config.maxCommand, config.minCommand);
         
-        cout << "Process " << name << " (ID: " << pID << ") created with "
-            << processList.back().totalInstruction << " instructions." << endl;
+        //cout << "Process " << name << " (ID: " << pID << ") created with "
+        //    << processList.back().totalInstruction << " instructions." << endl;
     }
     // Show process/es
     void showProcess(string name){
@@ -552,34 +552,67 @@ public:
 
         if (schedulerActive) {
             cout << "Scheduler is already running!\n";
-            return;
+            return; // to avoid duplicate scheduler threads
         }
 
         schedulerActive = true;
+        cout << "Scheduler is running...\n";
         
-        // Determine which algorithm to use based on config
-        if (config.schedulingAlgorithm == "\"fcfs\"" || config.schedulingAlgorithm == "fcfs") {
-            cout << "Scheduler started with FCFS on " << config.numCPU << " cores.\n";
-            
-            // Create one thread per CPU core running FCFS
-            for (int i = 0; i < config.numCPU; i++) {
+        // create CPU threads for specified algorithm
+        for (int i = 0; i < config.numCPU; i++) {
+            if (config.schedulingAlgorithm == "fcfs" || config.schedulingAlgorithm == "\"fcfs\"")
                 cpuThreads.emplace_back(&Screen::fcfs, this, i);
-            }
-        } 
-        else if (config.schedulingAlgorithm == "\"rr\"" || config.schedulingAlgorithm == "rr") {
-            cout << "Scheduler started with Round Robin (Quantum: " << config.timeQuantum 
-                << ") on " << config.numCPU << " cores.\n";
-            
-            // Create one thread per CPU core running Round Robin
-            for (int i = 0; i < config.numCPU; i++) {
+            else if (config.schedulingAlgorithm == "rr" || config.schedulingAlgorithm == "\"rr\"")
                 cpuThreads.emplace_back(&Screen::roundRobin, this, i);
+        }
+
+        // background thread so CLI will stay responsive
+        thread([this]() {
+            int nextProcessTick = config.batchFreq;
+
+            while (schedulerActive) {
+                cpuCycles++;
+
+                // Create new process every batchFreq cycles
+                {
+                    
+                    if (cpuCycles >= nextProcessTick) {
+                        if (processList.size() < MAX_PROCESS) {
+                            createProcess();
+                        }
+                        nextProcessTick += config.batchFreq;
+                    }
+                }
+
+                // Simulate CPU execution
+                int activeCores = 0;
+                {
+                    lock_guard<mutex> lock(processListMutex);
+                    for (auto &p : processList) {
+                        if (!p.isFinished && activeCores < config.numCPU) {
+                            // Simulate instruction progress
+                            p.currentInstruction++;
+                            if (p.currentInstruction >= p.totalInstruction) {
+                                p.isFinished = true;
+                                p.endTime = time(nullptr);
+                            }
+                            activeCores++;
+                        }
+                    }
+                }
+
+                cpuUsed = min(activeCores, config.numCPU);
+
+                // Tick delay to control loop speed
+                if (config.delayTime > 0)
+                    this_thread::sleep_for(chrono::milliseconds(config.delayTime));
+                else
+                    this_thread::sleep_for(chrono::milliseconds(100));
             }
-        }
-        else {
-            cout << "Unknown scheduling algorithm: " << config.schedulingAlgorithm << "\n";
-            cout << "Please use 'fcfs' or 'rr' in config.txt\n";
-            schedulerActive = false;
-        }
+
+            cout << "Scheduler loop stopped.\n";
+        }).detach();
+
     }
 
     void schedulerStop(){
