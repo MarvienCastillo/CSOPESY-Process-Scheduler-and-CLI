@@ -161,13 +161,24 @@ public:
         
         switch(inst.type) {
             case PRINT: {
-                // Store output for later display
+                // Store output with timestamp and core
                 string msg = inst.params[0];
                 // Remove quotes if present
                 if (msg.front() == '"' && msg.back() == '"') {
                     msg = msg.substr(1, msg.length() - 2);
                 }
-                outputLog.push_back("(" + to_string(index) + ") " + msg);
+                
+                // Get current timestamp
+                time_t now = time(nullptr);
+                struct tm timeinfo;
+                localtime_s(&timeinfo, &now);
+                char timestamp[32];
+                strftime(timestamp, sizeof(timestamp), "%m/%d/%Y %I:%M:%S%p", &timeinfo);
+                
+                // Format: (timestamp) Core:X "message"
+                string logEntry = "(" + string(timestamp) + ") Core:" 
+                                + to_string(coreAssigned) + " \"" + msg + "\"";
+                outputLog.push_back(logEntry);
                 break;
             }
             
@@ -201,7 +212,6 @@ public:
                     try {
                         val2 = (uint16_t)stoi(inst.params[1]);
                     } catch (...) {
-                        // If it's not a number and not in memory, treat as undeclared variable (0)
                         memory[inst.params[1]] = 0;
                         val2 = 0;
                     }
@@ -215,7 +225,6 @@ public:
                     try {
                         val3 = (uint16_t)stoi(inst.params[2]);
                     } catch (...) {
-                        // If it's not a number and not in memory, treat as undeclared variable (0)
                         memory[inst.params[2]] = 0;
                         val3 = 0;
                     }
@@ -245,7 +254,6 @@ public:
                     try {
                         val2 = (uint16_t)stoi(inst.params[1]);
                     } catch (...) {
-                        // If it's not a number and not in memory, treat as undeclared variable (0)
                         memory[inst.params[1]] = 0;
                         val2 = 0;
                     }
@@ -259,7 +267,6 @@ public:
                     try {
                         val3 = (uint16_t)stoi(inst.params[2]);
                     } catch (...) {
-                        // If it's not a number and not in memory, treat as undeclared variable (0)
                         memory[inst.params[2]] = 0;
                         val3 = 0;
                     }
@@ -275,12 +282,10 @@ public:
             
             case SLEEP: {
                 // Sleep is handled by the scheduler (CPU relinquishes)
-                // This is just a marker instruction
                 break;
             }
             
             case FOR_LOOP: {
-                // Simplified FOR loop - just repeat the next instruction
                 try {
                     int repeats = stoi(inst.params[0]);
                     // This would be handled by the scheduler
@@ -669,9 +674,6 @@ public:
             return;
         }
 
-        // REMOVED: Don't block access to finished processes
-        // Allow viewing finished processes in their screen
-
         cout << "\n----------------------------------------------\n";
         cout << "Process: " << targetProcess->name;
         if (targetProcess->isFinished) {
@@ -691,43 +693,28 @@ public:
             if (processCommand == "process-smi") {
                 lock_guard<mutex> lock(processListMutex);
                 
-                cout << "\n----------------------------------------------\n";
-                cout << "Process: " << targetProcess->name << "\n";
+                cout << "\nProcess name: " << targetProcess->name << "\n";
                 cout << "ID: " << targetProcess->pID << "\n";
                 
-                struct tm timeinfo;
-                localtime_s(&timeinfo, &targetProcess->startTime);
-                char dateBuffer[32];
-                strftime(dateBuffer, sizeof(dateBuffer), "%m/%d/%Y, %I:%M:%S %p", &timeinfo);
-                
-                cout << "Created: " << dateBuffer << "\n";
-                
-                // Show finish time if finished
-                if (targetProcess->isFinished) {
-                    struct tm endInfo;
-                    localtime_s(&endInfo, &targetProcess->endTime);
-                    char endBuffer[32];
-                    strftime(endBuffer, sizeof(endBuffer), "%m/%d/%Y, %I:%M:%S %p", &endInfo);
-                    cout << "Finished: " << endBuffer << "\n";
-                }
-                
-                cout << "\nCurrent instruction line: " << targetProcess->currentInstruction << "\n";
-                cout << "Lines of code: " << targetProcess->totalInstruction << "\n";
-                
-                // Display output logs from PRINT instructions
+                // Display logs
                 if (!targetProcess->outputLog.empty()) {
-                    cout << "\n--- Process Output ---\n";
+                    cout << "Logs:\n";
                     for (const auto& log : targetProcess->outputLog) {
                         cout << log << "\n";
                     }
-                    cout << "----------------------\n";
+                    cout << "\n";
+                } else {
+                    cout << "Logs:\n\n";
                 }
                 
+                // Show current instruction and total
+                cout << "Current instruction line: " << targetProcess->currentInstruction << "\n";
+                cout << "Lines of code: " << targetProcess->totalInstruction << "\n";
+                
+                // Show finished status
                 if (targetProcess->isFinished) {
                     cout << "\nFinished!\n";
                 }
-                
-                cout << "----------------------------------------------\n";
             }
             else if (processCommand == "exit") {
                 inProcessScreen = false;
@@ -750,7 +737,7 @@ void initializeSystem() {
 
         file >> ws;
         file >> ws; // skip whitespace
-        file >> ws;
+        file >> ws; 
 
         file.seekg(0); // start from beginning
         string key;
