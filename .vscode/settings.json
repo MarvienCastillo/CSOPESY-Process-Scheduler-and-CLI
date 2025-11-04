@@ -78,6 +78,7 @@
         "variant": "cpp",
         "filesystem": "cpp",
         "condition_variable": "cpp",
-        "mutex": "cpp"
+        "mutex": "cpp",
+        "map": "cpp"
     }
 }

@@ -9,6 +9,9 @@
 #include <iomanip>
 #include <filesystem>
 #include <mutex>
+#include <map>
+#include <cstdint>
+
 std::string ascii_art = R"(
   ____ ____   ____  _____  _______ _________   __
  / ___/ ___| / _  \|  _  \|  _____/  ____\  \ / /
@@ -36,6 +39,50 @@ typedef struct {
 bool is_initialized = false;
 Config config;
 
+// Instruction types enumeration
+enum InstructionType {
+    PRINT,
+    DECLARE,
+    ADD,
+    SUBTRACT,
+    SLEEP,
+    FOR_LOOP
+};
+
+// Base Instruction class
+class Instruction {
+public:
+    InstructionType type;
+    vector<string> params;
+    
+    Instruction(InstructionType t, vector<string> p) : type(t), params(p) {}
+    
+    string toString() {
+        string result;
+        switch(type) {
+            case PRINT: 
+                result = "PRINT(" + params[0] + ")";
+                break;
+            case DECLARE:
+                result = "DECLARE(" + params[0] + ", " + params[1] + ")";
+                break;
+            case ADD:
+                result = "ADD(" + params[0] + ", " + params[1] + ", " + params[2] + ")";
+                break;
+            case SUBTRACT:
+                result = "SUBTRACT(" + params[0] + ", " + params[1] + ", " + params[2] + ")";
+                break;
+            case SLEEP:
+                result = "SLEEP(" + params[0] + ")";
+                break;
+            case FOR_LOOP:
+                result = "FOR(...)";
+                break;
+        }
+        return result;
+    }
+};
+
 class Process{
 public:
     string name;
@@ -47,6 +94,50 @@ public:
     time_t startTime;
     time_t endTime;
 
+    // instructions of the process yup
+    vector<Instruction> instructions;
+    map<string, uint16_t> memory; // Variable storage
+    vector<string> outputLog; // Store PRINT outputs
+
+private:
+    // Helper function to create random instructions
+    void generateInstructions(int count) {
+        for (int i = 0; i < count; ++i) {
+            int instrType = rand() % 6; // 6 types of instructions
+            switch (instrType) {
+                case 0: // PRINT
+                    instructions.emplace_back(PRINT, vector<string>{"\"Hello world from " + name + "!\""});
+                    break;
+                case 1: // DECLARE
+                    instructions.emplace_back(DECLARE, vector<string>{"var" + to_string(i), to_string(rand() % 100)});
+                    break;
+                case 2: { // ADD
+                    int prevIdx = (i > 0) ? (i - 1) : 0;
+                    instructions.emplace_back(ADD, vector<string>{
+                        "var" + to_string(i), 
+                        "var" + to_string(prevIdx), 
+                        to_string(rand() % 50)
+                    });
+                    break;
+                }
+                case 3: { // SUBTRACT
+                    int prevIdx = (i > 0) ? (i - 1) : 0;
+                    instructions.emplace_back(SUBTRACT, vector<string>{
+                        "var" + to_string(i), 
+                        "var" + to_string(prevIdx), 
+                        to_string(rand() % 30)
+                    });
+                    break;
+                }
+                case 4: // SLEEP
+                    instructions.emplace_back(SLEEP, vector<string>{to_string(rand() % 5 + 1)});
+                    break;
+                case 5: // FOR_LOOP
+                    instructions.emplace_back(FOR_LOOP, vector<string>{to_string(rand() % 3 + 2)});
+                    break;
+            }
+        }
+    }
 public:
     // constructor
     Process(int pID, string name,int maxIns,int minIns){
@@ -57,6 +148,148 @@ public:
         this->currentInstruction = 0; // initialize
         isFinished= false; 
         this->startTime = time(nullptr); // to get the curr date and time (ctime library)
+    
+        // generate random instructions
+        generateInstructions(this->totalInstruction);
+    }
+
+    // Execute a single instruction
+    void executeInstruction(int index) {
+        if (index >= instructions.size()) return;
+        
+        Instruction& inst = instructions[index];
+        
+        switch(inst.type) {
+            case PRINT: {
+                // Store output for later display
+                string msg = inst.params[0];
+                // Remove quotes if present
+                if (msg.front() == '"' && msg.back() == '"') {
+                    msg = msg.substr(1, msg.length() - 2);
+                }
+                outputLog.push_back("(" + to_string(index) + ") " + msg);
+                break;
+            }
+            
+            case DECLARE: {
+                string var = inst.params[0];
+                uint16_t value = 0;
+                try {
+                    value = (uint16_t)stoi(inst.params[1]);
+                } catch (const invalid_argument&) {
+                    value = 0;
+                } catch (const out_of_range&) {
+                    value = 0;
+                }
+                memory[var] = value;
+                break;
+            }
+            
+            case ADD: {
+                string var1 = inst.params[0];
+                
+                // Ensure var1 exists in memory (auto-declare if not)
+                if (memory.find(var1) == memory.end()) {
+                    memory[var1] = 0;
+                }
+                
+                // Get var2 value (variable or literal)
+                uint16_t val2 = 0;
+                if (memory.find(inst.params[1]) != memory.end()) {
+                    val2 = memory[inst.params[1]];
+                } else {
+                    try {
+                        val2 = (uint16_t)stoi(inst.params[1]);
+                    } catch (...) {
+                        // If it's not a number and not in memory, treat as undeclared variable (0)
+                        memory[inst.params[1]] = 0;
+                        val2 = 0;
+                    }
+                }
+                
+                // Get var3 value (variable or literal)
+                uint16_t val3 = 0;
+                if (memory.find(inst.params[2]) != memory.end()) {
+                    val3 = memory[inst.params[2]];
+                } else {
+                    try {
+                        val3 = (uint16_t)stoi(inst.params[2]);
+                    } catch (...) {
+                        // If it's not a number and not in memory, treat as undeclared variable (0)
+                        memory[inst.params[2]] = 0;
+                        val3 = 0;
+                    }
+                }
+                
+                // Perform addition with clamping
+                uint32_t result = (uint32_t)val2 + (uint32_t)val3;
+                if (result > UINT16_MAX) result = UINT16_MAX;
+                
+                memory[var1] = (uint16_t)result;
+                break;
+            }
+            
+            case SUBTRACT: {
+                string var1 = inst.params[0];
+                
+                // Ensure var1 exists in memory (auto-declare if not)
+                if (memory.find(var1) == memory.end()) {
+                    memory[var1] = 0;
+                }
+                
+                // Get var2 value
+                uint16_t val2 = 0;
+                if (memory.find(inst.params[1]) != memory.end()) {
+                    val2 = memory[inst.params[1]];
+                } else {
+                    try {
+                        val2 = (uint16_t)stoi(inst.params[1]);
+                    } catch (...) {
+                        // If it's not a number and not in memory, treat as undeclared variable (0)
+                        memory[inst.params[1]] = 0;
+                        val2 = 0;
+                    }
+                }
+                
+                // Get var3 value
+                uint16_t val3 = 0;
+                if (memory.find(inst.params[2]) != memory.end()) {
+                    val3 = memory[inst.params[2]];
+                } else {
+                    try {
+                        val3 = (uint16_t)stoi(inst.params[2]);
+                    } catch (...) {
+                        // If it's not a number and not in memory, treat as undeclared variable (0)
+                        memory[inst.params[2]] = 0;
+                        val3 = 0;
+                    }
+                }
+                
+                // Perform subtraction with clamping (no negative)
+                int32_t result = (int32_t)val2 - (int32_t)val3;
+                if (result < 0) result = 0;
+                
+                memory[var1] = (uint16_t)result;
+                break;
+            }
+            
+            case SLEEP: {
+                // Sleep is handled by the scheduler (CPU relinquishes)
+                // This is just a marker instruction
+                break;
+            }
+            
+            case FOR_LOOP: {
+                // Simplified FOR loop - just repeat the next instruction
+                try {
+                    int repeats = stoi(inst.params[0]);
+                    // This would be handled by the scheduler
+                } catch (...) {
+                    // Invalid repeat count, skip
+                }
+                break;
+            }
+        }
     }
 };
 
@@ -99,11 +332,15 @@ private:
                     
                     {
                         lock_guard<mutex> lock(processListMutex);
+                        
+                        // Execute the current instruction
+                        curr->executeInstruction(curr->currentInstruction);
+                        
                         curr->currentInstruction++;
 
                         if (curr->currentInstruction >= curr->totalInstruction) {
                             curr->isFinished = true;
-                            curr->endTime = time(nullptr);  // Record actual finish time
+                            curr->endTime = time(nullptr);
                             cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                         }
                     }
@@ -150,91 +387,32 @@ private:
                     
                     {
                         lock_guard<mutex> lock(processListMutex);
+                        
+                        // Execute the current instruction
+                        curr->executeInstruction(curr->currentInstruction);
+                        
                         curr->currentInstruction++;
                         quantum++;
 
                         if (curr->currentInstruction >= curr->totalInstruction) {
                             curr->isFinished = true;
-                            curr->endTime = time(nullptr);  // Record actual finish time
+                            curr->endTime = time(nullptr);
                             cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                         }
                     }
                 }
                 
-                // Release core ALWAYS (even if not finished - for Round Robin)
+                // Release core ALWAYS
                 {
                     lock_guard<mutex> lock(processListMutex);
                     curr->coreAssigned = -1;
                 }
             } else {
-                // No process available, idle
                 this_thread::sleep_for(chrono::milliseconds(100));
             }
         }
     }
 public: 
-
-    // im lowkey confused sa scheduler-start like?
-    void runScreen(){
-        string screenCommand = "";
-        bool flag = true;
-        while(flag){
-            cout << "\n\nroot:\\> ";
-            getline(cin, screenCommand);
-            
-            if(screenCommand.find("screen -s ") == 0) {
-                if(is_initialized){
-                    string name = screenCommand.substr(10);
-                    if (name.empty()) {
-                        cout << "Please provide a process name.\n";
-                    } else {
-                        createProcess(name);
-                        processScreen(name); // Enter the process screen
-                    }
-                }
-                else{
-                    printNotInitialized();
-                }
-            }
-            else if(screenCommand.find("screen -r ") == 0) {
-                if(is_initialized){
-                    string name = screenCommand.substr(10);
-                    if (name.empty()) {
-                        cout << "Please provide a process name.\n";
-                    } else {
-                        processScreen(name); // Reattach to existing process
-                    }
-                }
-                else{
-                    printNotInitialized();
-                }
-            }
-            else if(screenCommand == "screen -ls") {
-                if(is_initialized){
-                    screenList();
-                }
-                else{
-                    printNotInitialized();
-                }
-            }
-            else if(screenCommand == "scheduler-start") {
-                schedulerStart();
-            }
-            else if(screenCommand == "scheduler-stop") {
-                schedulerStop();
-            }
-            else if(screenCommand == "report-util") {
-                reportUtil();
-            }
-            else if(screenCommand == "exit") {
-                flag = false;
-            }
-            else if(!screenCommand.empty()) {
-                cout << "Unknown command: " << screenCommand << "\n";
-            }
-        }
-    }
-
     void createProcess(){
         if(!is_initialized){
             printNotInitialized();
@@ -475,7 +653,6 @@ public:
     }
 
     void processScreen(string processName) {
-        // Find the process
         Process* targetProcess = nullptr;
         {
             lock_guard<mutex> lock(processListMutex);
@@ -492,14 +669,15 @@ public:
             return;
         }
 
-        // Check if process has already finished
-        if (targetProcess->isFinished) {
-            cout << "Process " << processName << " has already finished execution.\n";
-            return;
-        }
+        // REMOVED: Don't block access to finished processes
+        // Allow viewing finished processes in their screen
 
         cout << "\n----------------------------------------------\n";
-        cout << "Process: " << targetProcess->name << "\n";
+        cout << "Process: " << targetProcess->name;
+        if (targetProcess->isFinished) {
+            cout << " (Finished)";
+        }
+        cout << "\n";
         cout << "Entering process screen. Type 'process-smi' for details or 'exit' to return.\n";
         cout << "----------------------------------------------\n";
 
@@ -523,17 +701,33 @@ public:
                 strftime(dateBuffer, sizeof(dateBuffer), "%m/%d/%Y, %I:%M:%S %p", &timeinfo);
                 
                 cout << "Created: " << dateBuffer << "\n";
+                
+                // Show finish time if finished
+                if (targetProcess->isFinished) {
+                    struct tm endInfo;
+                    localtime_s(&endInfo, &targetProcess->endTime);
+                    char endBuffer[32];
+                    strftime(endBuffer, sizeof(endBuffer), "%m/%d/%Y, %I:%M:%S %p", &endInfo);
+                    cout << "Finished: " << endBuffer << "\n";
+                }
+                
                 cout << "\nCurrent instruction line: " << targetProcess->currentInstruction << "\n";
                 cout << "Lines of code: " << targetProcess->totalInstruction << "\n";
                 
+                // Display output logs from PRINT instructions
+                if (!targetProcess->outputLog.empty()) {
+                    cout << "\n--- Process Output ---\n";
+                    for (const auto& log : targetProcess->outputLog) {
+                        cout << log << "\n";
+                    }
+                    cout << "----------------------\n";
+                }
+                
                 if (targetProcess->isFinished) {
                     cout << "\nFinished!\n";
-                    cout << "----------------------------------------------\n";
-                    inProcessScreen = false; // Auto-exit when finished
-                    cout << "\nProcess has completed. Returning to main menu...\n";
-                } else {
-                    cout << "----------------------------------------------\n";
                 }
+                
+                cout << "----------------------------------------------\n";
             }
             else if (processCommand == "exit") {
                 inProcessScreen = false;
@@ -579,30 +773,75 @@ void initializeSystem() {
              << " | Quantum: " << config.timeQuantum << "\n";
     }
 
-
 int main(){
     srand(time(0));
     string command = "";
     cout << ascii_art << header << "\n--------------------------------------\n" << flush;
     Screen screen;
+    
     while(true){
         cout << "\n\nroot:\\> ";
-        getline(cin,command);
+        getline(cin, command);
+        
         if(command == "initialize" || command == "init"){
-            initializeSystem();
+            if(!is_initialized) {
+                initializeSystem();
+            } else {
+                cout << "System is already initialized!\n";
+            }
+        }
+        else if(command.find("screen -s ") == 0) {
             if(is_initialized){
-                screen.runScreen();
+                string name = command.substr(10);
+                if (name.empty()) {
+                    cout << "Please provide a process name.\n";
+                } else {
+                    screen.createProcess(name);
+                    screen.processScreen(name);
+                }
             }
             else{
                 printNotInitialized();
             }
         }
-        else if(command == "exit"){
-            exit(0);
+        else if(command.find("screen -r ") == 0) {
+            if(is_initialized){
+                string name = command.substr(10);
+                if (name.empty()) {
+                    cout << "Please provide a process name.\n";
+                } else {
+                    screen.processScreen(name);
+                }
+            }
+            else{
+                printNotInitialized();
+            }
         }
-        else{
-            printNotInitialized();
+        else if(command == "screen -ls") {
+            if(is_initialized){
+                screen.screenList();
+            }
+            else{
+                printNotInitialized();
+            }
+        }
+        else if(command == "scheduler-start") {
+            screen.schedulerStart();
+        }
+        else if(command == "scheduler-stop") {
+            screen.schedulerStop();
+        }
+        else if(command == "report-util") {
+            screen.reportUtil();
+        }
+        else if(command == "exit"){
+            cout << "Exiting CSOPESY emulator...\n";
+            break;
+        }
+        else if(!command.empty()){
+            cout << "Unknown command: " << command << "\n";
         }
     }
+    
     return 0;
 }
