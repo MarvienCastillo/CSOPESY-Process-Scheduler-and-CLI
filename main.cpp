@@ -12,6 +12,8 @@
 #include <map>
 #include <cstdint>
 #include <algorithm> // for std::remove
+#include <queue> // were using queues
+
 void clearConsole() {
 #ifdef _WIN32
     system("cls");   // Windows
@@ -313,80 +315,100 @@ void printNotInitialized() {
 
 class Screen {
 private:
-    vector<Process> processList; // kinda same with java's ArrayList<Process> processList
-    bool schedulerActive = false;
-    int cpuCycles = 0;
-    int cpuUsed = 0;
-    int cpuAvail = 0;
+    vector<Process*> allProcesses;        // All processes (for tracking/viewing)
+    queue<Process*> globalQueue;          // GLOBAL READY QUEUE
+    bool cpusActive = false;
+    bool processGeneratorActive = false;
+    int processCounter = 1;
     vector<thread> cpuThreads;
+    thread generatorThread;
+    mutex queueMutex;
     mutex processListMutex;
 
-    void fcfs(int coreID){
-        while (schedulerActive){
+    // Auto-generate processes
+    void processGenerator() {
+        int cyclesSinceLastGen = 0;
+        
+        while (processGeneratorActive) {
+            // Use delay-per-exec for the tick rate
+            this_thread::sleep_for(chrono::milliseconds(config.delayTime));
+            cyclesSinceLastGen++;
+            
+            // Generate process when cycles reach batch-process-freq
+            if (cyclesSinceLastGen >= config.batchFreq) {
+                {
+                    lock_guard<mutex> qLock(queueMutex);
+                    lock_guard<mutex> pLock(processListMutex);
+                    
+                    string name = "p";
+                    if (processCounter < 10) {
+                        name += "0" + to_string(processCounter);
+                    } else {
+                        name += to_string(processCounter);
+                    }
+                    
+                    Process* newProcess = new Process(processCounter, name, config.maxCommand, config.minCommand);
+                    allProcesses.push_back(newProcess);
+                    globalQueue.push(newProcess);
+                    
+                    processCounter++;
+                    
+                    if (processCounter > 1240) {
+                        cout << "\nMaximum process limit reached.\n";
+                        processGeneratorActive = false;
+                    }
+                }
+                cyclesSinceLastGen = 0;  // Reset counter
+            }
+        }
+    }
+
+    // FCFS: Each core picks from queue and runs to completion
+    void fcfs(int coreID) {
+        while (cpusActive) {
             Process* curr = nullptr;
 
-            // find next process
             {
-                lock_guard<mutex> lock(processListMutex);
-                for (auto& p : processList) {
-                    if (!p.isFinished && p.coreAssigned == -1) {
-                        p.coreAssigned = coreID;
-                        curr = &p;
-                        break;
-                    }
+                lock_guard<mutex> lock(queueMutex);
+                if (!globalQueue.empty()) {
+                    curr = globalQueue.front();
+                    globalQueue.pop();
+                    curr->coreAssigned = coreID;
                 }
             }
 
             if (curr) {
-                // Execute process until completion (FCFS)
-                while (curr->currentInstruction < curr->totalInstruction 
-                    && schedulerActive) {
-                    
+                while (curr->currentInstruction < curr->totalInstruction && cpusActive) {
+                    // Use delay-per-exec for instruction execution
                     this_thread::sleep_for(chrono::milliseconds(config.delayTime));
                     
-                    {
-                        lock_guard<mutex> lock(processListMutex);
-                        
-                        // Execute the current instruction
-                        curr->executeInstruction(curr->currentInstruction);
-                        
-                        curr->currentInstruction++;
+                    curr->executeInstruction(curr->currentInstruction);
+                    curr->currentInstruction++;
 
-                        if (curr->currentInstruction >= curr->totalInstruction) {
-                            curr->isFinished = true;
-                            curr->endTime = time(nullptr);
-                            //cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
-                        }
-                    }
-                }
-                
-                // Release core when finished
-                {
-                    lock_guard<mutex> lock(processListMutex);
-                    if (curr->isFinished) {
+                    if (curr->currentInstruction >= curr->totalInstruction) {
+                        curr->isFinished = true;
+                        curr->endTime = time(nullptr);
                         curr->coreAssigned = -1;
+                        cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                     }
                 }
             } else {
-                // No process available, idle
                 this_thread::sleep_for(chrono::milliseconds(100));
             }
         }
     }
 
-    void roundRobin(int coreID){
-        while (schedulerActive){
+    // Round Robin: Each core picks from queue and runs for quantum cycles
+    void roundRobin(int coreID) {
+        while (cpusActive) {
             Process* curr = nullptr;
 
-            // find next process
             {
-                lock_guard<mutex> lock(processListMutex);
-                for (auto& p : processList) {
-                    if (!p.isFinished && p.coreAssigned == -1) {
-                        p.coreAssigned = coreID;
-                        curr = &p;
-                        break;
-                    }
+                lock_guard<mutex> lock(queueMutex);
+                if (!globalQueue.empty()) {
+                    curr = globalQueue.front();
+                    globalQueue.pop();
+                    curr->coreAssigned = coreID;
                 }
             }
 
@@ -394,105 +416,101 @@ private:
                 int quantum = 0;
 
                 while (quantum < config.timeQuantum 
-                    && curr->currentInstruction < curr->totalInstruction 
-                    && schedulerActive) {
+                       && curr->currentInstruction < curr->totalInstruction 
+                       && cpusActive) {
                     
+                    // Use delay-per-exec for instruction execution
                     this_thread::sleep_for(chrono::milliseconds(config.delayTime));
                     
-                    {
-                        lock_guard<mutex> lock(processListMutex);
-                        
-                        // Execute the current instruction
-                        curr->executeInstruction(curr->currentInstruction);
-                        
-                        curr->currentInstruction++;
-                        quantum++;
+                    curr->executeInstruction(curr->currentInstruction);
+                    curr->currentInstruction++;
+                    quantum++;
 
-                        if (curr->currentInstruction >= curr->totalInstruction) {
-                            curr->isFinished = true;
-                            curr->endTime = time(nullptr);
-                            //cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
-                        }
+                    if (curr->currentInstruction >= curr->totalInstruction) {
+                        curr->isFinished = true;
+                        curr->endTime = time(nullptr);
+                        curr->coreAssigned = -1;
+                        cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                     }
                 }
-                
-                // Release core ALWAYS
-                {
-                    lock_guard<mutex> lock(processListMutex);
+
+                if (!curr->isFinished) {
+                    lock_guard<mutex> lock(queueMutex);
                     curr->coreAssigned = -1;
+                    globalQueue.push(curr);
                 }
             } else {
                 this_thread::sleep_for(chrono::milliseconds(100));
             }
         }
     }
+
 public: 
-    void createProcess(){
-        if(!is_initialized){
-            printNotInitialized();
-            return;
-        }
+
+    // Start CPUs on initialization
+    void startCPUs() {
+        if (cpusActive) return;
+
+        cpusActive = true;
         
-        lock_guard<mutex> lock(processListMutex);
-        string name = "P";
-        
-        int pID = processList.size() + 1;
-        if(pID < 10)
-            name += "0";
-        name = name + to_string(pID); 
-        processList.emplace_back(pID, name, config.maxCommand, config.minCommand);
-        
-        //cout << "Process " << name << " (ID: " << pID << ") created with "
-        //    << processList.back().totalInstruction << " instructions." << endl;
-    }
-    // Create Process
-    void createProcess(const string& name){ // it means that this name cannot be modified and passed by reference
-        if(!is_initialized){
-            printNotInitialized();
-            return;
-        }
-        
-        lock_guard<mutex> lock(processListMutex);
-        int pID = processList.size() + 1;
-        processList.emplace_back(pID, name, config.maxCommand, config.minCommand);
-        
-        //cout << "Process " << name << " (ID: " << pID << ") created with "
-        //    << processList.back().totalInstruction << " instructions." << endl;
-    }
-    // Show process/es
-    void showProcess(string name){
-        
-        int i;
-        int index;
-        bool flag = 0;
-        for(i=0;i<processList.size();i++){
-            if(processList[i].name == name){
-                cout << "Process " << processList[i].name << " found!" << endl;
-                flag = 1;
+        if (config.schedulingAlgorithm == "\"fcfs\"" || config.schedulingAlgorithm == "fcfs") {
+            cout << "CPUs started with FCFS algorithm.\n";
+            for (int i = 0; i < config.numCPU; i++) {
+                cpuThreads.emplace_back(&Screen::fcfs, this, i);
             }
-            
-        }
-        if(flag == 0){
-            cout << "Process " << name << " not found";
+        } 
+        else if (config.schedulingAlgorithm == "\"rr\"" || config.schedulingAlgorithm == "rr") {
+            cout << "CPUs started with Round Robin (Quantum: " << config.timeQuantum << ").\n";
+            for (int i = 0; i < config.numCPU; i++) {
+                cpuThreads.emplace_back(&Screen::roundRobin, this, i);
+            }
         }
     }
 
-    void screenList(){
-        if(processList.empty()){
+    // Manual process creation (screen -s <name>)
+    void createProcess(const string& name) {
+        if (!is_initialized) {
+            printNotInitialized();
+            return;
+        }
+        
+        lock_guard<mutex> qLock(queueMutex);
+        lock_guard<mutex> pLock(processListMutex);
+        
+        // Check if process with this name already exists
+        for (auto p : allProcesses) {
+            if (p->name == name) {
+                cout << "Error: Process with name '" << name << "' already exists!\n";
+                return;
+            }
+        }
+        
+        int pID = allProcesses.size() + 1;
+        Process* newProcess = new Process(pID, name, config.maxCommand, config.minCommand);
+        
+        allProcesses.push_back(newProcess);
+        globalQueue.push(newProcess);  // Add to queue
+        
+        cout << "Process " << name << " (ID: " << pID << ") created with "
+             << newProcess->totalInstruction << " instructions and added to queue." << endl;
+    }
+    
+    // Show process/es
+    void screenList() {
+        lock_guard<mutex> lock(processListMutex);
+        
+        if (allProcesses.empty()) {
             cout << "No processes exist right now\n";
             return;
         }
 
-        lock_guard<mutex> lock(processListMutex);
-        
-        // Calculate actual CPU usage
         int runningProcesses = 0;
-        for(auto& p: processList){
-            if(!p.isFinished && p.coreAssigned != -1) runningProcesses++;
+        for (auto p : allProcesses) {
+            if (!p->isFinished && p->coreAssigned != -1) runningProcesses++;
         }
         
-        cpuUsed = runningProcesses;
-        cpuAvail = config.numCPU - cpuUsed;
+        int cpuUsed = runningProcesses;
+        int cpuAvail = config.numCPU - cpuUsed;
         float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
 
         cout << "\nCPU Utilization: " << fixed << setprecision(2) << cpuUtilization << "%\n";
@@ -501,162 +519,109 @@ public:
         
         cout << "---------------------------------------------\n";
         cout << "Running processes:\n";
-        for(auto& p: processList){
-            if(!p.isFinished) {
+        bool hasRunning = false;
+        for (auto p : allProcesses) {
+            if (!p->isFinished) {
+                hasRunning = true;
                 struct tm timeinfo;
-                localtime_s(&timeinfo, &p.startTime);
+                localtime_s(&timeinfo, &p->startTime);
                 
                 char dateBuffer[32];
                 strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
 
-                string coreStr = (p.coreAssigned == -1) ? "N/A" : to_string(p.coreAssigned);
+                string coreStr = (p->coreAssigned == -1) ? "N/A" : to_string(p->coreAssigned);
                 
-                cout << left << setw(15) << p.name 
-                    << setw(35) << dateBuffer
-                    << "Core: " << setw(10) << coreStr
-                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+                cout << left << setw(15) << p->name 
+                     << setw(35) << dateBuffer
+                     << "Core: " << setw(10) << coreStr
+                     << p->currentInstruction << "/" << p->totalInstruction << "\n";
             }
-            else{
-                cout << "No running process found!" << endl;
-            }
+        }
+        if (!hasRunning) {
+            cout << "(No running processes)\n";
         }
         
         cout << "\nFinished processes:\n";
-        for(auto& p: processList){
-            if(p.isFinished) {
+        bool hasFinished = false;
+        for (auto p : allProcesses) {
+            if (p->isFinished) {
+                hasFinished = true;
                 struct tm startInfo, endInfo;
-                localtime_s(&startInfo, &p.startTime);
-                localtime_s(&endInfo, &p.endTime);  // Use endTime instead
+                localtime_s(&startInfo, &p->startTime);
+                localtime_s(&endInfo, &p->endTime);
                 
                 char startBuffer[32], endBuffer[32];
                 strftime(startBuffer, sizeof(startBuffer), "(%m/%d/%Y %I:%M:%S%p)", &startInfo);
                 strftime(endBuffer, sizeof(endBuffer), "(%m/%d/%Y %I:%M:%S%p)", &endInfo);
                 
-                cout << left << setw(15) << p.name 
-                    << setw(35) << startBuffer
-                    << setw(35) << endBuffer  // Show finish time
-                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+                cout << left << setw(15) << p->name 
+                     << setw(35) << startBuffer
+                     << setw(35) << endBuffer
+                     << p->currentInstruction << "/" << p->totalInstruction << "\n";
             }
-            else{
-                cout << "No finished process found!" << endl;
-            }
+        }
+        if (!hasFinished) {
+            cout << "(No finished processes)\n";
         }
         cout << "---------------------------------------------\n";
     }
 
-    void schedulerStart(){
-        if(!is_initialized){
+    void schedulerStart() {
+        if (!is_initialized) {
             printNotInitialized();
             return;
         }
 
-        if (schedulerActive) {
-            cout << "Scheduler is already running!\n";
-            return; // to avoid duplicate scheduler threads
+        if (processGeneratorActive) {
+            cout << "Process generator is already running!\n";
+            return;
         }
 
-        schedulerActive = true;
-        cout << "Scheduler is running...\n";
+        processGeneratorActive = true;
+        cout << "Scheduler started! Auto-generating processes every " 
+             << config.batchFreq << " cycles.\n";
         
-        // create CPU threads for specified algorithm
-        for (int i = 0; i < config.numCPU; i++) {
-            if (config.schedulingAlgorithm == "fcfs" || config.schedulingAlgorithm == "\"fcfs\"")
-                cpuThreads.emplace_back(&Screen::fcfs, this, i);
-            else if (config.schedulingAlgorithm == "rr" || config.schedulingAlgorithm == "\"rr\"")
-                cpuThreads.emplace_back(&Screen::roundRobin, this, i);
-        }
-
-        // background thread so CLI will stay responsive
-        thread([this]() {
-            int nextProcessTick = config.batchFreq;
-
-            while (schedulerActive) {
-                cpuCycles++;
-
-                // Create new process every batchFreq cycles
-                {
-                    
-                    if (cpuCycles >= nextProcessTick) {
-                        if (processList.size() < MAX_PROCESS) {
-                            createProcess();
-                        }
-                        nextProcessTick += config.batchFreq;
-                    }
-                }
-
-                // Simulate CPU execution
-                int activeCores = 0;
-                {
-                    lock_guard<mutex> lock(processListMutex);
-                    for (auto &p : processList) {
-                        if (!p.isFinished && activeCores < config.numCPU) {
-                            // Simulate instruction progress
-                            p.currentInstruction++;
-                            if (p.currentInstruction >= p.totalInstruction) {
-                                p.isFinished = true;
-                                p.endTime = time(nullptr);
-                            }
-                            activeCores++;
-                        }
-                    }
-                }
-
-                cpuUsed = min(activeCores, config.numCPU);
-
-                // Tick delay to control loop speed
-                if (config.delayTime > 0)
-                    this_thread::sleep_for(chrono::milliseconds(config.delayTime));
-                else
-                    this_thread::sleep_for(chrono::milliseconds(100));
-            }
-
-            cout << "Scheduler loop stopped.\n";
-        }).detach();
-
+        generatorThread = thread(&Screen::processGenerator, this);
     }
 
-    void schedulerStop(){
-        if (!schedulerActive) {
-            cout << "Scheduler is not running!\n";
+    void schedulerStop() {
+        if (!processGeneratorActive) {
+            cout << "Process generator is not running!\n";
             return;
         }
         
-        schedulerActive = false;
-        cout << "Stopping scheduler...\n";
+        processGeneratorActive = false;
+        cout << "Stopping process generation...\n";
         
-        // Wait for all CPU threads to finish
-        for (auto& t : cpuThreads) {
-            if (t.joinable()) {
-                t.join();
-            }
+        if (generatorThread.joinable()) {
+            generatorThread.join();
         }
-        cpuThreads.clear();
         
-        cout << "Scheduler stopped!\n";
+        cout << "Process generation stopped. CPUs continue running.\n";
     }
 
-    void reportUtil(){
+    void reportUtil() {
         ofstream Logs("csopesy-log.txt");
-        if(!Logs.is_open()){
+        if (!Logs.is_open()) {
             cout << "Error writing report.\n";
             return;
         }
-        if(processList.empty()){
+
+        lock_guard<mutex> lock(processListMutex);
+        
+        if (allProcesses.empty()) {
             Logs << "No processes exist right now\n";
             Logs.close();
             return;
         }
         
-        lock_guard<mutex> lock(processListMutex);
-        
-        // Calculate actual CPU usage
         int runningProcesses = 0;
-        for(auto& p: processList){
-            if(!p.isFinished && p.coreAssigned != -1) runningProcesses++;
+        for (auto p : allProcesses) {
+            if (!p->isFinished && p->coreAssigned != -1) runningProcesses++;
         }
         
-        cpuUsed = runningProcesses;
-        cpuAvail = config.numCPU - cpuUsed;
+        int cpuUsed = runningProcesses;
+        int cpuAvail = config.numCPU - cpuUsed;
         float cpuUtilization = (cpuUsed / (float)config.numCPU) * 100.0f;
         
         Logs << "\n------------------------------------------\n";
@@ -666,53 +631,56 @@ public:
         
         Logs << "---------------------------------------------\n";
         Logs << "Running processes:\n";
-        for(auto& p: processList){
-            if(!p.isFinished){
+        bool hasRunning = false;
+        for (auto p : allProcesses) {
+            if (!p->isFinished) {
+                hasRunning = true;
                 struct tm timeinfo;
-                localtime_s(&timeinfo, &p.startTime);
+                localtime_s(&timeinfo, &p->startTime);
                 
                 char dateBuffer[32];
                 strftime(dateBuffer, sizeof(dateBuffer), "(%m/%d/%Y %I:%M:%S%p)", &timeinfo);
 
-                string coreStr = (p.coreAssigned == -1) ? "N/A" : to_string(p.coreAssigned);
+                string coreStr = (p->coreAssigned == -1) ? "N/A" : to_string(p->coreAssigned);
                 
-                Logs << left << setw(15) << p.name 
-                    << setw(35) << dateBuffer
-                    << "Core: " << setw(10) << coreStr
-                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+                Logs << left << setw(15) << p->name 
+                     << setw(35) << dateBuffer
+                     << "Core: " << setw(10) << coreStr
+                     << p->currentInstruction << "/" << p->totalInstruction << "\n";
             }
-            else{
-                Logs << "No running process found" << endl;
-            }
+        }
+        if (!hasRunning) {
+            Logs << "(No running processes)\n";
         }
         
         Logs << "\nFinished processes:\n";
-        for(auto& p: processList){
-            if(p.isFinished){
+        bool hasFinished = false;
+        for (auto p : allProcesses) {
+            if (p->isFinished) {
+                hasFinished = true;
                 struct tm startInfo, endInfo;
-                localtime_s(&startInfo, &p.startTime);
-                localtime_s(&endInfo, &p.endTime);  // Use endTime
+                localtime_s(&startInfo, &p->startTime);
+                localtime_s(&endInfo, &p->endTime);
                 
                 char startBuffer[32], endBuffer[32];
                 strftime(startBuffer, sizeof(startBuffer), "(%m/%d/%Y %I:%M:%S%p)", &startInfo);
                 strftime(endBuffer, sizeof(endBuffer), "(%m/%d/%Y %I:%M:%S%p)", &endInfo);
                 
-                Logs << left << setw(15) << p.name 
-                    << setw(35) << startBuffer
-                    << setw(35) << endBuffer  // Show finish time
-                    << p.currentInstruction << "/" << p.totalInstruction << "\n";
+                Logs << left << setw(15) << p->name 
+                     << setw(35) << startBuffer
+                     << setw(35) << endBuffer
+                     << p->currentInstruction << "/" << p->totalInstruction << "\n";
             }
-            else{
-                Logs << "No finished process found" << endl;
-            }
+        }
+        if (!hasFinished) {
+            Logs << "(No finished processes)\n";
         }
         Logs << "---------------------------------------------\n";
         
         Logs.close();
-        // making the path 
+        
         filesystem::path path_object = std::filesystem::current_path();
         string path_string = path_object.string();
-
         cout << "Report generated at " << path_string << "\\csopesy-log.txt" << endl;
     }
 
@@ -720,9 +688,9 @@ public:
         Process* targetProcess = nullptr;
         {
             lock_guard<mutex> lock(processListMutex);
-            for (auto& p : processList) {
-                if (p.name == processName) {
-                    targetProcess = &p;
+            for (auto p : allProcesses) {
+                if (p->name == processName) {
+                    targetProcess = p;
                     break;
                 }
             }
@@ -750,12 +718,9 @@ public:
             getline(cin, processCommand);
 
             if (processCommand == "process-smi") {
-                lock_guard<mutex> lock(processListMutex);
-                
                 cout << "\nProcess name: " << targetProcess->name << "\n";
                 cout << "ID: " << targetProcess->pID << "\n";
                 
-                // Display logs
                 if (!targetProcess->outputLog.empty()) {
                     cout << "Logs:\n";
                     for (const auto& log : targetProcess->outputLog) {
@@ -766,11 +731,9 @@ public:
                     cout << "Logs:\n\n";
                 }
                 
-                // Show current instruction and total
                 cout << "Current instruction line: " << targetProcess->currentInstruction << "\n";
                 cout << "Lines of code: " << targetProcess->totalInstruction << "\n";
                 
-                // Show finished status
                 if (targetProcess->isFinished) {
                     cout << "\nFinished!\n";
                 }
@@ -785,39 +748,57 @@ public:
             }
         }
     }
+
+    ~Screen() {
+        cpusActive = false;
+        processGeneratorActive = false;
+        
+        if (generatorThread.joinable()) {
+            generatorThread.join();
+        }
+        
+        for (auto& t : cpuThreads) {
+            if (t.joinable()) {
+                t.join();
+            }
+        }
+
+        for (auto p : allProcesses) {
+            delete p;
+        }
+    }
 };
 
-void initializeSystem() {
-        ifstream file("config.txt");
-        if (!file.is_open()) {
-            cout << "Error: config.txt not found.\n";
-            return;
-        }
-
-        file >> ws;
-        file >> ws; // skip whitespace
-        file >> ws; 
-
-        file.seekg(0); // start from beginning
-        string key;
-        while (file >> key) {
-            if (key == "num-cpu") file >> config.numCPU;
-            else if (key == "scheduler") file >> config.schedulingAlgorithm;
-            else if (key == "quantum-cycles") file >> config.timeQuantum;
-            else if (key == "batch-process-freq") file >> config.batchFreq;
-            else if (key == "min-ins") file >> config.minCommand;
-            else if (key == "max-ins") file >> config.maxCommand;
-            else if (key == "delay-per-exec") file >> config.delayTime;
-        }
-
-        file.close();
-        is_initialized = true;
-
-        cout << "System initialized successfully!\n";
-        cout << "CPUs: " << config.numCPU
-             << " | Scheduler: " << config.schedulingAlgorithm
-             << " | Quantum: " << config.timeQuantum << "\n";
+void initializeSystem(Screen& screen) {
+    ifstream file("config.txt");
+    if (!file.is_open()) {
+        cout << "Error: config.txt not found.\n";
+        return;
     }
+
+    file >> ws >> ws >> ws;
+    file.seekg(0);
+    string key;
+    while (file >> key) {
+        if (key == "num-cpu") file >> config.numCPU;
+        else if (key == "scheduler") file >> config.schedulingAlgorithm;
+        else if (key == "quantum-cycles") file >> config.timeQuantum;
+        else if (key == "batch-process-freq") file >> config.batchFreq;
+        else if (key == "min-ins") file >> config.minCommand;
+        else if (key == "max-ins") file >> config.maxCommand;
+        else if (key == "delay-per-exec") file >> config.delayTime;
+    }
+
+    file.close();
+    is_initialized = true;
+
+    cout << "System initialized successfully!\n";
+    cout << "CPUs: " << config.numCPU
+         << " | Scheduler: " << config.schedulingAlgorithm
+         << " | Quantum: " << config.timeQuantum << "\n";
+    
+    screen.startCPUs();
+}
 
 int main(){
     srand(time(0));
@@ -829,15 +810,15 @@ int main(){
         cout << "\n\nroot:\\> ";
         getline(cin, command);
         
-        if(command == "initialize" || command == "init"){
-            if(!is_initialized) {
-                initializeSystem();
+        if (command == "initialize" || command == "init") {
+            if (!is_initialized) {
+                initializeSystem(screen);
             } else {
                 cout << "System is already initialized!\n";
             }
         }
-        else if(command.find("screen -s ") == 0) {
-            if(is_initialized){
+        else if (command.find("screen -s ") == 0) {
+            if (is_initialized) {
                 string name = command.substr(10);
                 if (name.empty()) {
                     cout << "Please provide a process name.\n";
@@ -847,12 +828,12 @@ int main(){
                     screen.processScreen(name);
                 }
             }
-            else{
+            else {
                 printNotInitialized();
             }
         }
-        else if(command.find("screen -r ") == 0) {
-            if(is_initialized){
+        else if (command.find("screen -r ") == 0) {
+            if (is_initialized) {
                 string name = command.substr(10);
                 if (name.empty()) {
                     cout << "Please provide a process name.\n";
@@ -861,32 +842,32 @@ int main(){
                     screen.processScreen(name);
                 }
             }
-            else{
+            else {
                 printNotInitialized();
             }
         }
-        else if(command == "screen -ls") {
-            if(is_initialized){
+        else if (command == "screen -ls") {
+            if (is_initialized) {
                 screen.screenList();
             }
-            else{
+            else {
                 printNotInitialized();
             }
         }
-        else if(command == "scheduler-start") {
+        else if (command == "scheduler-start") {
             screen.schedulerStart();
         }
-        else if(command == "scheduler-stop") {
+        else if (command == "scheduler-stop") {
             screen.schedulerStop();
         }
-        else if(command == "report-util") {
+        else if (command == "report-util") {
             screen.reportUtil();
         }
-        else if(command == "exit"){
+        else if (command == "exit") {
             cout << "Exiting CSOPESY emulator...\n";
             break;
         }
-        else if(!command.empty()){
+        else if (!command.empty()) {
             cout << "Unknown command: " << command << "\n";
         }
     }
