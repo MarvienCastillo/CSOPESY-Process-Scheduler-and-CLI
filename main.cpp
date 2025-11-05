@@ -332,8 +332,8 @@ private:
         int cyclesSinceLastGen = 0;
         
         while (processGeneratorActive) {
-            // Use delay-per-exec for the tick rate
-            this_thread::sleep_for(chrono::seconds(config.batchFreq));
+            
+            this_thread::sleep_for(chrono::seconds(1));
             cyclesSinceLastGen++;
             
             // Generate process when cycles reach batch-process-freq
