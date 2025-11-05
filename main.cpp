@@ -375,7 +375,7 @@ private:
             if (curr) {
                 while (curr->currentInstruction < curr->totalInstruction && cpusActive) {
                     // Use delay-per-exec for instruction execution
-                    this_thread::sleep_for(chrono::seconds(config.delayTime));
+                this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::milliseconds(10));
                     
                     curr->executeInstruction(curr->currentInstruction);
                     curr->currentInstruction++;
@@ -387,7 +387,7 @@ private:
                     }
                 }
             } else {
-                this_thread::sleep_for(chrono::seconds(config.delayTime));
+                this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::milliseconds(10));
             }
         }
     }
@@ -414,7 +414,7 @@ private:
                        && cpusActive) {
                     
                     // Use delay-per-exec for instruction execution
-                    this_thread::sleep_for(chrono::seconds(config.delayTime));
+                this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::milliseconds(10));
                     
                     curr->executeInstruction(curr->currentInstruction);
                     curr->currentInstruction++;
@@ -433,7 +433,7 @@ private:
                     globalQueue.push(curr);
                 }
             } else {
-                this_thread::sleep_for(chrono::seconds(config.delayTime));
+                this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::milliseconds(10));
             }
         }
     }
