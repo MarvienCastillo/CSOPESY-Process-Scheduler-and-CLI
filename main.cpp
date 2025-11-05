@@ -352,11 +352,6 @@ private:
                     globalQueue.push(newProcess);
                     
                     processCounter++;
-                    
-                    if (processCounter > 1240) {
-                        cout << "\nMaximum process limit reached.\n";
-                        processGeneratorActive = false;
-                    }
                 }
                 cyclesSinceLastGen = 0;  // Reset counter
             }
