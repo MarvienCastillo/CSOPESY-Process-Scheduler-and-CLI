@@ -299,10 +299,7 @@ public:
             case FOR_LOOP: {
                 try {
                     int repeats = stoi(inst.params[0]);
-                    if (repeats <= 0)
-                        break;
-                    
-                    executeForLoop(currentInstruction+1, repeats, 1);
+    
                 } catch (...) {
                     // Invalid repeat count, skip
                 }
@@ -311,27 +308,7 @@ public:
         }
     }
 
-    //helper function for for loop
-    void executeForLoop(int n, int repeats, int depth){
-        if (depth > 3) //max depth
-            return;
-
-        for (int r = 0; r < repeats; r++) {
-            for (int i = n + 1; i < instructions.size(); i++) {
-                if (instructions[i].type == FOR_LOOP) {
-                    int nestedRepeats = 0;
-                    try {
-                        nestedRepeats = stoi(instructions[i].params[0]);
-                    } catch (...) {
-                        nestedRepeats = 1;
-                    }
-                    executeForLoop(i, nestedRepeats, depth + 1);
-                } else {
-                    executeInstruction(i);
-                }
-            }
-        }
-    }
+    
 };
 
 void printNotInitialized() {
