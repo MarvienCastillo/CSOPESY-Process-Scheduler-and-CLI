@@ -2,7 +2,7 @@
 
 ## Project Information
 - **Course:** CSOPESY (Introduction to Operation Systems)
-- **Project:** Marquee Console
+- **Project:** Process Scheduling Emulator with CLI Interface
 
 ## Group Members
 - Castillo, Marvien Angel
@@ -12,12 +12,12 @@
 
 ## Entry Point
 - **Main File:** main.cpp
-- **Location:** CSOPESY-Marquee-console\main.cpp
+- **Location:** CSOPESY-Emulator\main.cpp
 
 ## System Requirements
-- Windows Operating System (uses Windows-specific APIs)
-- C++ Compiler with C++11 support (MinGW/GCC recommended)
-- Threading support (pthread)
+- Platform: Windows, Linux, or macOS (cross-platform compatible)
+- Compiler: C++17 compatible compiler (GCC, Clang, or MSVC)
+- Libraries: Standard C++ libraries with threading support
 
 ## Compilation Instructions
 
@@ -25,37 +25,53 @@
 ```bash
 g++ -std=c++17 main.cpp -o main.exe
 ```
+## Configuration File
+Change the information config.txt in the same directory if needed:
+```
+num-cpu 4
+scheduler "rr"
+quantum-cycles 5
+batch-process-freq 3
+min-ins 5
+max-ins 15
+delay-per-exec 100
+```
 
 ## Running the Program
 After successful compilation, run:
 ```bash
-ver4.exe
+main.exe
 ```
 
 ## Features
-- **Multi-threaded Architecture**: Uses 3 threads for keyboard input, marquee logic, and display
-- **Real-time Input**: Character-by-character input handling with backspace support
-- **Scrolling Marquee**: Animated text display with customizable speed
-- **Thread-safe Operations**: Proper mutex synchronization for console access
-- **Command Interface**: Interactive command-line interface
+- **Multi-core CPU Simulation:** Configurable number of processor cores
+- **Scheduling Algorithms:** FCFS (First-Come-First-Served) and Round Robin with time quantum
+- **Dynamic Process Generation:** Automatic process creation with customizable frequency
+- **Process Isolation:** Each process maintains private memory space and variables
+- **Real-time Monitoring:** Live process tracking and execution logging
+- **Interactive CLI:** Comprehensive command-line interface for system control
 
 ## Available Commands
-- `help` - Show available commands
-- `start_marquee` - Start marquee animation
-- `stop_marquee` - Stop marquee animation
-- `set_text <text>` - Set custom marquee text
-- `set_speed <ms>` - Set animation speed in milliseconds
-- `exit` - Exit the program
+- `initialize` or `init` - Load configuration and start CPU cores
+- `screen -s <name>` - Create new process and enter process screen
+- `screen -r <name>` - Resume existing process screen
+- `screen -ls` - List all processes (running and completed)
+- `scheduler-start` - Begin automatic process generation
+- `scheduler-stop` - Halt automatic process generation
+- `report-util` - Generate CPU utilization report
+- `exit` - Terminate the emulator
 
 ## File Structure
 ```
 CSOPESY-Marquee-console/
 ├── main.cpp          # Final implementation (MAIN ENTRY POINT)
+├── config.txt        # System configuration parameters
 └── README.md         # Project documentation
 ```
 
 ## Notes
-- Console cursor is hidden during execution for better visual experience
-- Windows-specific functions require compilation on Windows platform
-- Command prompt must be fully maximized to see the UI clearly
-- If display issues occur, try running in a standard Windows Command Prompt or expanding the terminal
+- Ensure config.txt is present in the working directory before initialization
+- The emulator automatically starts CPU threads upon initialization
+- Process screens provide isolated environments for individual process inspection
+- Utilization reports are saved to csopesy-log.txt with timestamps and core assignments
+- For optimal viewing, use a terminal with sufficient width to display process lists clearly
