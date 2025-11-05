@@ -331,7 +331,7 @@ private:
         
         while (processGeneratorActive) {
             // Use delay-per-exec for the tick rate
-            this_thread::sleep_for(chrono::seconds(config.delayTime));
+            this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::seconds(1));
             cyclesSinceLastGen++;
             
             // Generate process when cycles reach batch-process-freq
@@ -375,7 +375,7 @@ private:
             if (curr) {
                 while (curr->currentInstruction < curr->totalInstruction && cpusActive) {
                     // Use delay-per-exec for instruction execution
-                    this_thread::sleep_for(chrono::seconds(config.delayTime));
+                    this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::seconds(1));
                     
                     curr->executeInstruction(curr->currentInstruction);
                     curr->currentInstruction++;
@@ -387,7 +387,7 @@ private:
                     }
                 }
             } else {
-                this_thread::sleep_for(chrono::seconds(100));
+                this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::seconds(1));
             }
         }
     }
@@ -414,7 +414,7 @@ private:
                        && cpusActive) {
                     
                     // Use delay-per-exec for instruction execution
-                    this_thread::sleep_for(chrono::seconds(config.delayTime));
+                    this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::seconds(1));
                     
                     curr->executeInstruction(curr->currentInstruction);
                     curr->currentInstruction++;
@@ -433,7 +433,7 @@ private:
                     globalQueue.push(curr);
                 }
             } else {
-                this_thread::sleep_for(chrono::seconds(100));
+                this_thread::sleep_for(chrono::seconds(config.delayTime) + chrono::seconds(1));
             }
         }
     }
