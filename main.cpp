@@ -384,7 +384,6 @@ private:
                         curr->isFinished = true;
                         curr->endTime = time(nullptr);
                         curr->coreAssigned = -1;
-                        cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                     }
                 }
             } else {
@@ -425,7 +424,6 @@ private:
                         curr->isFinished = true;
                         curr->endTime = time(nullptr);
                         curr->coreAssigned = -1;
-                        cout << "\nProcess " << curr->name << " finished on Core " << coreID << "!" << endl;
                     }
                 }
 
